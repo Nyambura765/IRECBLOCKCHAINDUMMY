@@ -1,77 +1,72 @@
-import React, { useState } from 'react';
-import { ShoppingCart, Plus, X, Eye, Zap, Coins, CheckCircle, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShoppingCart, Plus, X, Eye, Zap, Coins, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+
+// Import your blockchain functions
+import { 
+  listNFT, 
+  purchaseNFT, 
+  calculateRequiredPayment, 
+  fractionalize, 
+  validateFractionalizationParams 
+} from '../BlockchainServices/irecPlatformHooks'; 
 
 interface Listing {
   id: number;
-  tokenId: number;
+  tokenId: bigint;
   seller: string;
-  price: string;
+  price: bigint;
   active: boolean;
-  totalEnergy: number;
-  energyPerToken: number;
+  totalEnergy: bigint;
+  energyPerToken: bigint;
   tokenName: string;
   tokenSymbol: string;
   fractionalTokenAddress?: string;
-  remainingTokens?: number;
+  remainingTokens?: bigint;
+  listingId?: bigint; // Blockchain listing ID
 }
 
 interface PurchaseRequest {
   id: number;
-  listingId: number;
+  listingId: bigint;
   buyer: string;
-  purchaseAmount: number;
+  purchaseAmount: bigint;
   isFractional: boolean;
   isCompleted: boolean;
   paidAmount: string;
+  transactionHash?: string;
+}
+
+interface LoadingState {
+  listing: boolean;
+  purchasing: boolean;
+  fractionalizing: boolean;
+  calculating: boolean;
+}
+
+interface TransactionStatus {
+  type: 'success' | 'error' | 'info';
+  message: string;
+  hash?: string;
 }
 
 const Marketplace: React.FC = () => {
-  const [listings, setListings] = useState<Listing[]>([
-    {
-      id: 1,
-      tokenId: 101,
-      seller: '0x1234...5678',
-      price: '2.5',
-      active: true,
-      totalEnergy: 1000,
-      energyPerToken: 10,
-      tokenName: 'Solar Energy Credits',
-      tokenSymbol: 'SEC',
-      remainingTokens: 100
-    },
-    {
-      id: 2,
-      tokenId: 102,
-      seller: '0xabcd...efgh',
-      price: '5.0',
-      active: true,
-      totalEnergy: 2000,
-      energyPerToken: 20,
-      tokenName: 'Wind Energy Credits',
-      tokenSymbol: 'WEC',
-      remainingTokens: 100
-    },
-    {
-      id: 3,
-      tokenId: 103,
-      seller: '0x9876...5432',
-      price: '1.8',
-      active: true,
-      totalEnergy: 0,
-      energyPerToken: 0,
-      tokenName: '',
-      tokenSymbol: ''
-    }
-  ]);
-
+  const [listings, setListings] = useState<Listing[]>([]);
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
   const [selectedTab, setSelectedTab] = useState<'marketplace' | 'create' | 'manage'>('marketplace');
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [purchaseMode, setPurchaseMode] = useState<'full' | 'fractional'>('full');
-  const [fractionalAmount, setFractionalAmount] = useState<number>(1);
-  const [userAddress] = useState('0x1234...abcd'); // Mock user address
+  const [fractionalAmount, setFractionalAmount] = useState<bigint>(1n);
+  const [userAddress] = useState('0x1234...abcd'); // Replace with actual connected wallet address
   const [platformFee] = useState(2.5); // 2.5%
   const [showCancelConfirm, setShowCancelConfirm] = useState<number | null>(null);
+  const [loading, setLoading] = useState<LoadingState>({
+    listing: false,
+    purchasing: false,
+    fractionalizing: false,
+    calculating: false
+  });
+  const [transactionStatus, setTransactionStatus] = useState<TransactionStatus | null>(null);
+  const [requiredPayment, setRequiredPayment] = useState<bigint | null>(null);
 
   // New listing form state
   const [newListing, setNewListing] = useState({
@@ -83,117 +78,339 @@ const Marketplace: React.FC = () => {
     tokenSymbol: ''
   });
 
-  const calculatePlatformFee = (amount: number): number => {
-    return (amount * platformFee) / 100;
+  // Fractionalization form state
+  const [fractionalizationForm, setFractionalizationForm] = useState({
+    tokenId: '',
+    totalEnergy: '',
+    energyPerToken: '',
+    tokenName: '',
+    tokenSymbol: ''
+  });
+
+  const showStatus = (status: TransactionStatus) => {
+    setTransactionStatus(status);
+    setTimeout(() => setTransactionStatus(null), 5000);
   };
 
-  const calculateFractionalPrice = (listing: Listing, amount: number): number => {
-    if (!listing.totalEnergy || !listing.energyPerToken) return 0;
-    const totalTokens = listing.totalEnergy / listing.energyPerToken;
-    const pricePerToken = parseFloat(listing.price) / totalTokens;
-    return pricePerToken * amount;
+  const formatAddress = (address: string): string => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const formatEther = (wei: bigint): string => {
+    return (Number(wei) / 1e18).toFixed(4);
+  };
+
+  const parseEther = (ether: string): bigint => {
+    return BigInt(Math.floor(parseFloat(ether) * 1e18));
   };
 
   const canBeFractionalized = (listing: Listing): boolean => {
-    return listing.totalEnergy > 0 && 
-           listing.energyPerToken > 0 && 
+    return listing.totalEnergy > 0n && 
+           listing.energyPerToken > 0n && 
            listing.tokenName.length > 0 &&
            listing.tokenSymbol.length > 0;
   };
 
-  const handleCreateListing = () => {
+  // Calculate required payment when purchase parameters change
+  useEffect(() => {
+    if (selectedListing && selectedListing.listingId !== undefined) {
+      const calculatePayment = async () => {
+        setLoading(prev => ({ ...prev, calculating: true }));
+        
+        const amount = purchaseMode === 'full' ? 1n : fractionalAmount;
+        const result = await calculateRequiredPayment(
+          selectedListing.listingId!,
+          purchaseMode === 'fractional',
+          amount
+        );
+
+        if (result.success && result.requiredPayment) {
+          setRequiredPayment(result.requiredPayment);
+        } else {
+          showStatus({
+            type: 'error',
+            message: result.error || 'Failed to calculate payment'
+          });
+        }
+        
+        setLoading(prev => ({ ...prev, calculating: false }));
+      };
+
+      calculatePayment();
+    }
+  }, [selectedListing, purchaseMode, fractionalAmount]);
+
+  const handleCreateListing = async () => {
     if (!newListing.tokenId || !newListing.price) {
-      alert('Token ID and Price are required');
+      showStatus({
+        type: 'error',
+        message: 'Token ID and Price are required'
+      });
       return;
     }
 
-    const listing: Listing = {
-      id: Date.now(),
-      tokenId: parseInt(newListing.tokenId),
-      seller: userAddress,
-      price: newListing.price,
-      active: true,
-      totalEnergy: parseInt(newListing.totalEnergy) || 0,
-      energyPerToken: parseInt(newListing.energyPerToken) || 0,
-      tokenName: newListing.tokenName,
-      tokenSymbol: newListing.tokenSymbol,
-      remainingTokens: newListing.totalEnergy && newListing.energyPerToken ? 
-        parseInt(newListing.totalEnergy) / parseInt(newListing.energyPerToken) : 0
-    };
+    setLoading(prev => ({ ...prev, listing: true }));
 
-    setListings([...listings, listing]);
-    setNewListing({
-      tokenId: '',
-      price: '',
-      totalEnergy: '',
-      energyPerToken: '',
-      tokenName: '',
-      tokenSymbol: ''
-    });
-    setSelectedTab('marketplace');
-  };
+    try {
+      const tokenId = BigInt(newListing.tokenId);
+      const price = parseEther(newListing.price);
+      const totalEnergy = BigInt(newListing.totalEnergy || '0');
+      const energyPerToken = BigInt(newListing.energyPerToken || '0');
 
-  const handlePurchase = () => {
-    if (!selectedListing) return;
+      const result = await listNFT(
+        tokenId,
+        price,
+        totalEnergy,
+        energyPerToken,
+        newListing.tokenName,
+        newListing.tokenSymbol
+      );
 
-    let purchaseAmount = 0;
-    let totalPrice = 0;
+      if (result.success) {
+        const listing: Listing = {
+          id: Date.now(),
+          tokenId,
+          seller: userAddress,
+          price,
+          active: true,
+          totalEnergy,
+          energyPerToken,
+          tokenName: newListing.tokenName,
+          tokenSymbol: newListing.tokenSymbol,
+          remainingTokens: totalEnergy > 0n && energyPerToken > 0n ? 
+            totalEnergy / energyPerToken : 0n,
+          listingId: result.listingId ? BigInt(result.listingId) : undefined
+        };
 
-    if (purchaseMode === 'full') {
-      totalPrice = parseFloat(selectedListing.price);
-      purchaseAmount = selectedListing.remainingTokens || 0;
-    } else {
-      totalPrice = calculateFractionalPrice(selectedListing, fractionalAmount);
-      purchaseAmount = fractionalAmount;
+        setListings([...listings, listing]);
+        setNewListing({
+          tokenId: '',
+          price: '',
+          totalEnergy: '',
+          energyPerToken: '',
+          tokenName: '',
+          tokenSymbol: ''
+        });
+        
+        showStatus({
+          type: 'success',
+          message: 'NFT listed successfully!',
+          hash: result.hash
+        });
+        
+        setSelectedTab('marketplace');
+      } else {
+        showStatus({
+          type: 'error',
+          message: result.error || 'Failed to list NFT'
+        });
+      }
+    } catch {
+      showStatus({
+        type: 'error',
+        message: 'An unexpected error occurred'
+      });
     }
 
-    const fee = calculatePlatformFee(totalPrice);
-    const finalPrice = totalPrice + fee;
+    setLoading(prev => ({ ...prev, listing: false }));
+  };
 
-    const newRequest: PurchaseRequest = {
-      id: Date.now(),
-      listingId: selectedListing.id,
-      buyer: userAddress,
-      purchaseAmount: purchaseAmount,
-      isFractional: purchaseMode === 'fractional',
-      isCompleted: true,
-      paidAmount: finalPrice.toFixed(4)
-    };
+  const handlePurchase = async () => {
+    if (!selectedListing || selectedListing.listingId === undefined || !requiredPayment) {
+      showStatus({
+        type: 'error',
+        message: 'Invalid purchase parameters'
+      });
+      return;
+    }
 
-    // Update listing
-    const updatedListings = listings.map(listing => {
-      if (listing.id === selectedListing.id) {
-        if (purchaseMode === 'full') {
-          return { ...listing, active: false };
-        } else {
-          const newRemainingTokens = (listing.remainingTokens || 0) - fractionalAmount;
-          return { 
-            ...listing, 
-            remainingTokens: newRemainingTokens,
-            active: newRemainingTokens > 0
-          };
-        }
+    setLoading(prev => ({ ...prev, purchasing: true }));
+
+    try {
+      const amount = purchaseMode === 'full' ? 1n : fractionalAmount;
+      
+      const result = await purchaseNFT(
+        selectedListing.listingId,
+        purchaseMode === 'fractional',
+        amount,
+        requiredPayment
+      );
+
+      if (result.success) {
+        const newRequest: PurchaseRequest = {
+          id: Date.now(),
+          listingId: selectedListing.listingId,
+          buyer: userAddress,
+          purchaseAmount: amount,
+          isFractional: purchaseMode === 'fractional',
+          isCompleted: true,
+          paidAmount: formatEther(requiredPayment),
+          transactionHash: result.hash
+        };
+
+        // Update listing
+        const updatedListings = listings.map(listing => {
+          if (listing.id === selectedListing.id) {
+            if (purchaseMode === 'full') {
+              return { ...listing, active: false };
+            } else {
+              const newRemainingTokens = (listing.remainingTokens || 0n) - fractionalAmount;
+              return { 
+                ...listing, 
+                remainingTokens: newRemainingTokens,
+                active: newRemainingTokens > 0n
+              };
+            }
+          }
+          return listing;
+        });
+
+        setListings(updatedListings);
+        setPurchaseRequests([...purchaseRequests, newRequest]);
+        
+        showStatus({
+          type: 'success',
+          message: `Successfully purchased ${purchaseMode === 'full' ? 'NFT' : 'tokens'}!`,
+          hash: result.hash
+        });
+        
+        setSelectedListing(null);
+        setPurchaseMode('full');
+        setFractionalAmount(1n);
+        setRequiredPayment(null);
+      } else {
+        showStatus({
+          type: 'error',
+          message: result.error || 'Failed to purchase NFT'
+        });
       }
-      return listing;
-    });
+    } catch {
+      showStatus({
+        type: 'error',
+        message: 'An unexpected error occurred during purchase'
+      });
+    }
 
-    setListings(updatedListings);
-    setPurchaseRequests([...purchaseRequests, newRequest]);
-    setSelectedListing(null);
-    setPurchaseMode('full');
-    setFractionalAmount(1);
+    setLoading(prev => ({ ...prev, purchasing: false }));
+  };
+
+  const handleFractionalize = async () => {
+    if (!fractionalizationForm.tokenId || !fractionalizationForm.totalEnergy || !fractionalizationForm.energyPerToken) {
+      showStatus({
+        type: 'error',
+        message: 'Token ID, Total Energy, and Energy per Token are required'
+      });
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, fractionalizing: true }));
+
+    try {
+      const tokenId = BigInt(fractionalizationForm.tokenId);
+      const totalEnergy = BigInt(fractionalizationForm.totalEnergy);
+      const energyPerToken = BigInt(fractionalizationForm.energyPerToken);
+
+      // Validate parameters first
+      const validation = await validateFractionalizationParams(
+        tokenId,
+        totalEnergy,
+        energyPerToken,
+        userAddress as `0x${string}`
+      );
+
+      if (!validation.success) {
+        showStatus({
+          type: 'error',
+          message: validation.error || 'Validation failed'
+        });
+        setLoading(prev => ({ ...prev, fractionalizing: false }));
+        return;
+      }
+
+      const result = await fractionalize(
+        tokenId,
+        totalEnergy,
+        energyPerToken,
+        fractionalizationForm.tokenName,
+        fractionalizationForm.tokenSymbol
+      );
+
+      if (result.success) {
+        showStatus({
+          type: 'success',
+          message: `NFT fractionalized successfully! Created ${validation.tokenCount} tokens.`,
+          hash: result.hash
+        });
+        
+        setFractionalizationForm({
+          tokenId: '',
+          totalEnergy: '',
+          energyPerToken: '',
+          tokenName: '',
+          tokenSymbol: ''
+        });
+      } else {
+        showStatus({
+          type: 'error',
+          message: result.error || 'Failed to fractionalize NFT'
+        });
+      }
+    } catch {
+      showStatus({
+        type: 'error',
+        message: 'An unexpected error occurred during fractionalization'
+      });
+    }
+
+    setLoading(prev => ({ ...prev, fractionalizing: false }));
   };
 
   const handleCancelListing = (listingId: number) => {
+    // Note: You would need to implement a cancelListing function in your blockchain hooks
+    // For now, we'll just update the local state
     const updatedListings = listings.map(listing => 
       listing.id === listingId ? { ...listing, active: false } : listing
     );
     setListings(updatedListings);
     setShowCancelConfirm(null);
+    
+    showStatus({
+      type: 'info',
+      message: 'Listing cancelled (Note: Implement blockchain cancellation)'
+    });
   };
 
-  const formatAddress = (address: string): string => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const renderTransactionStatus = () => {
+    if (!transactionStatus) return null;
+
+    const bgColor = transactionStatus.type === 'success' ? 'bg-green-100 border-green-200' :
+                   transactionStatus.type === 'error' ? 'bg-red-100 border-red-200' :
+                   'bg-blue-100 border-blue-200';
+    
+    const textColor = transactionStatus.type === 'success' ? 'text-green-800' :
+                     transactionStatus.type === 'error' ? 'text-red-800' :
+                     'text-blue-800';
+
+    return (
+      <div className={`fixed top-4 right-4 p-4 rounded-lg border ${bgColor} ${textColor} max-w-md z-50 shadow-lg`}>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="font-medium">{transactionStatus.message}</p>
+            {transactionStatus.hash && (
+              <p className="text-xs mt-1 opacity-75">
+                Tx: {formatAddress(transactionStatus.hash)}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setTransactionStatus(null)}
+            className="ml-2 opacity-50 hover:opacity-75"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const renderMarketplace = () => (
@@ -214,11 +431,11 @@ const Marketplace: React.FC = () => {
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">NFT #{listing.tokenId}</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">NFT #{listing.tokenId.toString()}</h3>
                   <p className="text-sm text-gray-600">by {formatAddress(listing.seller)}</p>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-green-600">{listing.price} ETH</div>
+                  <div className="text-2xl font-bold text-green-600">{formatEther(listing.price)} ETH</div>
                 </div>
               </div>
 
@@ -229,9 +446,9 @@ const Marketplace: React.FC = () => {
                     <span className="text-sm font-medium text-green-800">Fractionalizable</span>
                   </div>
                   <div className="space-y-1 text-xs text-green-700">
-                    <div>Total Energy: {listing.totalEnergy.toLocaleString()} kW</div>
-                    <div>Energy/Token: {listing.energyPerToken} kW</div>
-                    <div>Tokens Available: {listing.remainingTokens}</div>
+                    <div>Total Energy: {listing.totalEnergy.toString()} kW</div>
+                    <div>Energy/Token: {listing.energyPerToken.toString()} kW</div>
+                    <div>Tokens Available: {listing.remainingTokens?.toString() || '0'}</div>
                     <div>Token: {listing.tokenSymbol}</div>
                   </div>
                 </div>
@@ -289,6 +506,7 @@ const Marketplace: React.FC = () => {
               onChange={(e) => setNewListing({...newListing, tokenId: e.target.value})}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               placeholder="Enter token ID"
+              disabled={loading.listing}
             />
           </div>
 
@@ -303,6 +521,7 @@ const Marketplace: React.FC = () => {
               onChange={(e) => setNewListing({...newListing, price: e.target.value})}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               placeholder="0.00"
+              disabled={loading.listing}
             />
           </div>
         </div>
@@ -324,6 +543,7 @@ const Marketplace: React.FC = () => {
                 onChange={(e) => setNewListing({...newListing, totalEnergy: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="1000"
+                disabled={loading.listing}
               />
             </div>
 
@@ -337,6 +557,7 @@ const Marketplace: React.FC = () => {
                 onChange={(e) => setNewListing({...newListing, energyPerToken: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="10"
+                disabled={loading.listing}
               />
             </div>
 
@@ -350,6 +571,7 @@ const Marketplace: React.FC = () => {
                 onChange={(e) => setNewListing({...newListing, tokenName: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="Solar Energy Credits"
+                disabled={loading.listing}
               />
             </div>
 
@@ -363,21 +585,118 @@ const Marketplace: React.FC = () => {
                 onChange={(e) => setNewListing({...newListing, tokenSymbol: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="SEC"
+                disabled={loading.listing}
               />
             </div>
           </div>
         </div>
 
+        {/* Fractionalization Section */}
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center gap-2">
+            <Zap className="w-5 h-5" />
+            Standalone Fractionalization
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Fractionalize an existing NFT without listing it for sale
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                NFT Token ID *
+              </label>
+              <input
+                type="number"
+                value={fractionalizationForm.tokenId}
+                onChange={(e) => setFractionalizationForm({...fractionalizationForm, tokenId: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter token ID"
+                disabled={loading.fractionalizing}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Total Energy (kW) *
+              </label>
+              <input
+                type="number"
+                value={fractionalizationForm.totalEnergy}
+                onChange={(e) => setFractionalizationForm({...fractionalizationForm, totalEnergy: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="1000"
+                disabled={loading.fractionalizing}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Energy per Token (kW) *
+              </label>
+              <input
+                type="number"
+                value={fractionalizationForm.energyPerToken}
+                onChange={(e) => setFractionalizationForm({...fractionalizationForm, energyPerToken: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="50"
+                disabled={loading.fractionalizing}
+              />
+              <p className="text-xs text-gray-500 mt-1">Minimum: 50kW</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Token Name *
+              </label>
+              <input
+                type="text"
+                value={fractionalizationForm.tokenName}
+                onChange={(e) => setFractionalizationForm({...fractionalizationForm, tokenName: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Solar Energy Credits"
+                disabled={loading.fractionalizing}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Token Symbol *
+              </label>
+              <input
+                type="text"
+                value={fractionalizationForm.tokenSymbol}
+                onChange={(e) => setFractionalizationForm({...fractionalizationForm, tokenSymbol: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="SEC"
+                disabled={loading.fractionalizing}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleFractionalize}
+            disabled={loading.fractionalizing}
+            className="mt-4 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {loading.fractionalizing && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading.fractionalizing ? 'Fractionalizing...' : 'Fractionalize NFT'}
+          </button>
+        </div>
+
         <div className="flex gap-4">
           <button
             onClick={handleCreateListing}
-            className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium"
+            disabled={loading.listing}
+            className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Create Listing
+            {loading.listing && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading.listing ? 'Creating Listing...' : 'Create Listing'}
           </button>
           <button
             onClick={() => setSelectedTab('marketplace')}
             className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={loading.listing}
           >
             Cancel
           </button>
@@ -399,8 +718,11 @@ const Marketplace: React.FC = () => {
               <div key={listing.id} className="bg-white rounded-lg shadow border border-gray-200 p-4">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h4 className="font-medium text-gray-800">NFT #{listing.tokenId}</h4>
-                    <p className="text-sm text-gray-600">{listing.price} ETH</p>
+                    <h4 className="font-medium text-gray-800">NFT #{listing.tokenId.toString()}</h4>
+                    <p className="text-sm text-gray-600">{formatEther(listing.price)} ETH</p>
+                    {listing.listingId && (
+                      <p className="text-xs text-gray-500">Listing ID: {listing.listingId.toString()}</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {listing.active ? (
@@ -419,7 +741,7 @@ const Marketplace: React.FC = () => {
                 
                 {canBeFractionalized(listing) && (
                   <div className="text-xs text-gray-600 mb-2">
-                    Remaining tokens: {listing.remainingTokens}
+                    Remaining tokens: {listing.remainingTokens?.toString() || '0'}
                   </div>
                 )}
 
@@ -470,7 +792,7 @@ const Marketplace: React.FC = () => {
   const renderPurchaseModal = () => {
     if (!selectedListing) return null;
 
-    const fullPrice = parseFloat(selectedListing.price);
+    const fullPrice = Number(formatEther(selectedListing.price));
     const fractionalPrice = calculateFractionalPrice(selectedListing, fractionalAmount);
     const selectedPrice = purchaseMode === 'full' ? fullPrice : fractionalPrice;
     const platformFeeAmount = calculatePlatformFee(selectedPrice);
@@ -530,9 +852,9 @@ const Marketplace: React.FC = () => {
                     <input
                       type="number"
                       min="1"
-                      max={selectedListing.remainingTokens}
-                      value={fractionalAmount}
-                      onChange={(e) => setFractionalAmount(parseInt(e.target.value) || 1)}
+                      max={selectedListing.remainingTokens !== undefined ? selectedListing.remainingTokens.toString() : undefined}
+                      value={fractionalAmount.toString()}
+                      onChange={(e) => setFractionalAmount(BigInt(e.target.value || '1'))}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                     <div className="text-xs text-gray-600 mt-1">
@@ -632,6 +954,7 @@ const Marketplace: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4">
+      {renderTransactionStatus()}
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -686,4 +1009,25 @@ const Marketplace: React.FC = () => {
   );
 };
 
+function calculateFractionalPrice(selectedListing: Listing, fractionalAmount: bigint) {
+  // If the listing is not fractionalizable, return the full price
+  if (!selectedListing.totalEnergy || !selectedListing.energyPerToken || selectedListing.energyPerToken === 0n) {
+    return Number(selectedListing.price) / 1e18;
+  }
+  // Calculate price per token
+  const totalTokens = selectedListing.totalEnergy / selectedListing.energyPerToken;
+  if (totalTokens === 0n) return 0;
+  const pricePerToken = selectedListing.price / totalTokens;
+  // Multiply by the number of tokens requested
+  const fractionalPrice = pricePerToken * fractionalAmount;
+  return Number(fractionalPrice) / 1e18;
+}
+
 export default Marketplace;
+function calculatePlatformFee(selectedPrice: number): number {
+  // Platform fee is a percentage of the selected price (ETH)
+  // The platformFee variable is 2.5 (percent) in the component scope
+  const feePercent = 2.5;
+  return (selectedPrice * feePercent) / 100;
+}
+

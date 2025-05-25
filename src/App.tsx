@@ -23,33 +23,32 @@ import {
 } from "@tanstack/react-query";
 import { type ReactNode } from 'react'; // Fix type-only import
 
-// Create a new QueryClient instance
+// Create a new QueryClient instance with blockchain-optimized settings
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 3,
-      refetchOnWindowFocus: false,
+      staleTime: 1000 * 30, // 30 seconds instead of 5 minutes for fresh blockchain data
+      retry: 2,
+      refetchOnWindowFocus: true, // Allow refetch for fresh blockchain data
     },
   },
 });
 
 // RainbowKit configuration
 const config = getDefaultConfig({
-  appName: 'CarbonToken',
-  projectId: import.meta.env.VITE_PROJECT_ID || 'your-project-id', // Fallback for missing env var
+  appName: 'IREC',
+  projectId: import.meta.env.VITE_PROJECT_ID,
   chains: [
-    sepolia,    // Primary testnet
-    mainnet,    // Ethereum mainnet
-    polygon,    // Polygon for lower fees
-    optimism,   // Optimism L2
-    arbitrum,   // Arbitrum L2
-    base,       // Base L2
+    sepolia,    
+    mainnet,    
+    polygon,    
+    optimism,   
+    arbitrum,   
+    base,       
   ],
-  ssr: false, // Disable server-side rendering for client-side apps
 });
 
-// Error Boundary Component
+// Error Boundary Component with enhanced logging
 interface ErrorBoundaryProps {
   children: ReactNode;
 }
@@ -66,6 +65,13 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasError: bool
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('App Error:', error, errorInfo);
+    console.error('Error stack:', error.stack);
+    console.error('Component stack:', errorInfo.componentStack);
+    
+    // Log specific blockchain-related errors
+    if (error.message.includes('wallet') || error.message.includes('chain') || error.message.includes('RainbowKit')) {
+      console.error('Blockchain/Wallet related error detected:', error.message);
+    }
   }
 
   render() {
