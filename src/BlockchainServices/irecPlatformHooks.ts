@@ -30,18 +30,7 @@ function hasEthereumProvider(window: Window): boolean {
 
 } 
 
-interface AdminInfo {
-  address: `0x${string}`;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-}
 
-
-interface TransactionResult {
-  success: boolean;
-  hash?: `0x${string}`;
-  error?: string;
-}
 
 // Get the wallet client using browser wallet
 export async function getWalletClient(): Promise<WalletClientResult> {
@@ -147,10 +136,12 @@ export async function grantAdminRole(
     
     let errorMessage = "Failed to grant admin role";
     if (error instanceof Error) {
-      if (error.message.includes("DEFAULT_ADMIN_ROLE")) {
+      if (error.message.includes("SUPER_ADMIN_ROLE")) {
         errorMessage = "Access denied: Only super admins can grant admin roles";
       } else if (error.message.includes("User rejected")) {
         errorMessage = "Transaction was rejected by user";
+      } else if (error.message.includes("Invalid account address")) {
+        errorMessage = "Invalid account address provided";
       } else {
         errorMessage = error.message;
       }
@@ -195,10 +186,14 @@ export async function grantSuperAdminRole(
     
     let errorMessage = "Failed to grant super admin role";
     if (error instanceof Error) {
-      if (error.message.includes("DEFAULT_ADMIN_ROLE")) {
-        errorMessage = "Access denied: Only super admins can grant super admin roles";
+      if (error.message.includes("INITIAL_SUPER_ADMIN_ROLE")) {
+        errorMessage = "Access denied: Only the initial super admin can grant super admin roles";
       } else if (error.message.includes("User rejected")) {
         errorMessage = "Transaction was rejected by user";
+      } else if (error.message.includes("Invalid account address")) {
+        errorMessage = "Invalid account address provided";
+      } else if (error.message.includes("Cannot grant role to initial super admin again")) {
+        errorMessage = "Cannot grant super admin role to the initial super admin again";
       } else {
         errorMessage = error.message;
       }
@@ -245,10 +240,12 @@ export async function revokeAdminRole(
     
     let errorMessage = "Failed to revoke admin role";
     if (error instanceof Error) {
-      if (error.message.includes("DEFAULT_ADMIN_ROLE")) {
+      if (error.message.includes("SUPER_ADMIN_ROLE")) {
         errorMessage = "Access denied: Only super admins can revoke admin roles";
       } else if (error.message.includes("User rejected")) {
         errorMessage = "Transaction was rejected by user";
+      } else if (error.message.includes("Cannot revoke role from initial super admin")) {
+        errorMessage = "Cannot revoke admin role from the initial super admin";
       } else {
         errorMessage = error.message;
       }
@@ -293,10 +290,12 @@ export async function revokeSuperAdminRole(
     
     let errorMessage = "Failed to revoke super admin role";
     if (error instanceof Error) {
-      if (error.message.includes("DEFAULT_ADMIN_ROLE")) {
-        errorMessage = "Access denied: Only super admins can revoke super admin roles";
+      if (error.message.includes("INITIAL_SUPER_ADMIN_ROLE")) {
+        errorMessage = "Access denied: Only the initial super admin can revoke super admin roles";
       } else if (error.message.includes("User rejected")) {
         errorMessage = "Transaction was rejected by user";
+      } else if (error.message.includes("Cannot revoke role from initial super admin")) {
+        errorMessage = "Cannot revoke super admin role from the initial super admin";
       } else {
         errorMessage = error.message;
       }
@@ -351,26 +350,70 @@ export async function isSuperAdmin(accountAddress: `0x${string}`): Promise<boole
 }
 
 /**
+ * Check if an address is the initial super admin
+ */
+export async function isInitialSuperAdmin(accountAddress: `0x${string}`): Promise<boolean> {
+  try {
+    const publicClient = getPublicClient();
+    
+    const result = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'isInitialSuperAdmin',
+      args: [accountAddress],
+    });
+
+    return result as boolean;
+  } catch (error) {
+    console.error("Error checking initial super admin status:", error);
+    return false;
+  }
+}
+
+/**
+ * Get the initial super admin address
+ */
+export async function getInitialSuperAdmin(): Promise<`0x${string}` | null> {
+  try {
+    const publicClient = getPublicClient();
+    
+    const result = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'getInitialSuperAdmin',
+    });
+
+    return result as `0x${string}`;
+  } catch (error) {
+    console.error("Error getting initial super admin:", error);
+    return null;
+  }
+}
+
+/**
  * Check current user's admin permissions
  */
 export async function getCurrentUserPermissions(): Promise<{
   address: `0x${string}` | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isInitialSuperAdmin: boolean;
   error?: string;
 }> {
   try {
     const { address } = await getWalletClient();
     
-    const [adminStatus, superAdminStatus] = await Promise.all([
+    const [adminStatus, superAdminStatus, initialSuperAdminStatus] = await Promise.all([
       isAdmin(address as `0x${string}`),
-      isSuperAdmin(address as `0x${string}`)
+      isSuperAdmin(address as `0x${string}`),
+      isInitialSuperAdmin(address as `0x${string}`)
     ]);
 
     return {
       address: address as `0x${string}`,
       isAdmin: adminStatus,
-      isSuperAdmin: superAdminStatus
+      isSuperAdmin: superAdminStatus,
+      isInitialSuperAdmin: initialSuperAdminStatus
     };
   } catch (error) {
     console.error("Error getting current user permissions:", error);
@@ -378,8 +421,112 @@ export async function getCurrentUserPermissions(): Promise<{
       address: null,
       isAdmin: false,
       isSuperAdmin: false,
+      isInitialSuperAdmin: false,
       error: error instanceof Error ? error.message : "Failed to get permissions"
     };
+  }
+}
+
+// ============ OPTIMIZED PERMISSION FUNCTIONS ============
+
+/**
+ * Check current user's permissions specifically for role granting operations
+ * This is a lightweight version focused only on what's needed for role management UI
+ */
+export async function getRoleGrantingPermissions(): Promise<{
+  address: `0x${string}` | null;
+  canGrantAdmin: boolean;
+  canGrantSuperAdmin: boolean;
+  error?: string;
+}> {
+  try {
+    const { address } = await getWalletClient();
+    
+    if (!address) {
+      return {
+        address: null,
+        canGrantAdmin: false,
+        canGrantSuperAdmin: false,
+        error: "Wallet not connected"
+      };
+    }
+    // Only check the permissions needed for granting roles
+    // Super admins can grant admin roles
+    // Initial super admin can grant super admin roles
+    const [isSuperAdminStatus, isInitialSuperAdminStatus] = await Promise.all([
+      isSuperAdmin(address as `0x${string}`),
+      isInitialSuperAdmin(address as `0x${string}`)
+    ]);
+    return {
+      address: address as `0x${string}`,
+      canGrantAdmin: isSuperAdminStatus, // Super admins can grant admin roles
+      canGrantSuperAdmin: isInitialSuperAdminStatus, // Only initial super admin can grant super admin roles
+    };
+  } catch (error) {
+    console.error("Error getting role granting permissions:", error);
+    return {
+      address: null,
+      canGrantAdmin: false,
+      canGrantSuperAdmin: false,
+      error: error instanceof Error ? error.message : "Failed to get permissions"
+    };
+  }
+}
+
+/**
+ * Lightweight check - just see if user can perform any admin actions
+ * Useful for showing/hiding admin UI elements
+ */
+export async function canUserPerformAdminActions(): Promise<boolean> {
+  try {
+    const { address } = await getWalletClient();
+    if (!address) return false;
+    
+    return await isAdmin(address as `0x${string}`);
+  } catch (error) {
+    console.error("Error checking admin permissions:", error);
+    return false;
+  }
+}
+
+/**
+ * Even more lightweight - just check if wallet is connected and get address
+ * Use this for basic UI state management
+ */
+export async function getConnectedAddress(): Promise<`0x${string}` | null> {
+  try {
+    const { address } = await getWalletClient();
+    return address as `0x${string}` | null;
+  } catch (error) {
+    console.error("Error getting connected address:", error);
+    return null;
+  }
+}
+
+/**
+ * Check specific permission without multiple calls
+ * Use this when you need to check just one permission
+ */
+export async function checkSpecificPermission(
+  permission: 'admin' | 'superAdmin' | 'initialSuperAdmin'
+): Promise<boolean> {
+  try {
+    const { address } = await getWalletClient();
+    if (!address) return false;
+    
+    switch (permission) {
+      case 'admin':
+        return await isAdmin(address as `0x${string}`);
+      case 'superAdmin':
+        return await isSuperAdmin(address as `0x${string}`);
+      case 'initialSuperAdmin':
+        return await isInitialSuperAdmin(address as `0x${string}`);
+      default:
+        return false;
+    }
+  } catch (error) {
+    console.error(`Error checking ${permission} permission:`, error);
+    return false;
   }
 }
 
@@ -471,15 +618,17 @@ export async function getSuperAdminCount(): Promise<number> {
 export async function getAdminInfo(addresses: `0x${string}`[]): Promise<AdminInfo[]> {
   try {
     const promises = addresses.map(async (address) => {
-      const [adminStatus, superAdminStatus] = await Promise.all([
+      const [adminStatus, superAdminStatus, initialSuperAdminStatus] = await Promise.all([
         isAdmin(address),
-        isSuperAdmin(address)
+        isSuperAdmin(address),
+        isInitialSuperAdmin(address)
       ]);
 
       return {
         address,
         isAdmin: adminStatus,
-        isSuperAdmin: superAdminStatus
+        isSuperAdmin: superAdminStatus,
+        isInitialSuperAdmin: initialSuperAdminStatus
       };
     });
 
@@ -510,25 +659,12 @@ export async function getAllAdminInfo(): Promise<AdminInfo[]> {
   }
 }
 
-// ============ UTILITY FUNCTIONS ============
-
-/**
- * Validate if an address is a valid Ethereum address
- */
-export function isValidAddress(address: string): address is `0x${string}` {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-}
-
-/**
- * Format address for display (truncate middle)
- */
-export function formatAddress(address: `0x${string}`, chars: number = 6): string {
-  if (!address) return '';
-  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
-}
+// ============ LEGACY/DEPRECATED FUNCTIONS ============
+// These functions are kept for backward compatibility but the optimized versions above are preferred
 
 /**
  * Check if current user can perform admin actions
+ * @deprecated Use canUserPerformAdminActions() instead for better performance
  */
 export async function canPerformAdminActions(): Promise<boolean> {
   const { isAdmin: adminStatus } = await getCurrentUserPermissions();
@@ -537,11 +673,14 @@ export async function canPerformAdminActions(): Promise<boolean> {
 
 /**
  * Check if current user can perform super admin actions
+ * @deprecated Use checkSpecificPermission('superAdmin') instead for better performance
  */
 export async function canPerformSuperAdminActions(): Promise<boolean> {
   const { isSuperAdmin: superAdminStatus } = await getCurrentUserPermissions();
   return superAdminStatus;
 }
+
+// ============ IREC MINTING FUNCTION ============
 
 //mint irec nft
 export async function mintIREC(
@@ -615,6 +754,38 @@ export async function mintIREC(
          
     return { success: false, error: errorMessage }
   }
+}
+
+// ============ TYPE DEFINITIONS ============
+
+export interface AdminInfo {
+  address: `0x${string}`;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isInitialSuperAdmin: boolean;
+}
+
+export interface TransactionResult {
+  success: boolean;
+  hash?: `0x${string}`;
+  error?: string;
+}
+
+// ============ UTILITY FUNCTIONS ============
+
+/**
+ * Validate if an address is a valid Ethereum address
+ */
+export function isValidAddress(address: string): address is `0x${string}` {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+/**
+ * Format address for display (truncate middle)
+ */
+export function formatAddress(address: `0x${string}`, chars: number = 6): string {
+  if (!address) return '';
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
 }
 //list NFTs
 export async function listNFT(
