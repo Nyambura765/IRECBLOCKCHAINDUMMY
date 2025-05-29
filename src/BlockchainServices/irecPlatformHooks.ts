@@ -7,14 +7,15 @@ import {
     MarketplaceAddress,
     marketplaceABI,
     FractionalizationAddress,
-    fractionalizationABI
+    fractionalizationABI,
+    fractionalTokenABI
 } from './core';
 
 //set up public client
 function getPublicClient() {
         return createPublicClient({
       chain: sepolia,
-      transport: http(`${import.meta.env.VITE_SEP_RPC_URL}`)
+      transport: http(`${import.meta.env.VITE_SEPOLIA_RPC_URL}`)
     });
 }
 
@@ -23,6 +24,13 @@ interface WalletClientResult {
     walletClient: WalletClient;
     address: string;
 } 
+
+// Define TransactionResult type for role management functions
+export interface TransactionResult {
+    success: boolean;
+    hash?: `0x${string}`;
+    error?: string;
+}
 
 // Type guard to check for ethereum provider
 function hasEthereumProvider(window: Window): boolean {
@@ -61,27 +69,18 @@ export async function approveProject(
       throw new Error("Wallet not connected")
     } 
 
-    // Execute the transaction
+    // Execute the transaction and return hash immediately
     const hash = await walletClient.writeContract({
       address: IrecNFTAddress as `0x${string}`,
       abi: IrecNFTABI,
       functionName: 'approveProject',
       args: [projectAddress],
       chain: sepolia,
-      account: address as `0x${string}`, // Added missing account property with proper type casting
+      account: address as `0x${string}`,
     })
 
-    // Wait for transaction confirmation
-    const publicClient = getPublicClient()
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    })
-
-    if (receipt.status === 'success') {
-      return { success: true, hash }
-    } else {
-      throw new Error("Transaction failed")
-    }
+    // Return immediately with hash - don't wait for receipt
+    return { success: true, hash }
    } catch (error) {
     console.error("Error approving project:", error)
          
@@ -99,6 +98,7 @@ export async function approveProject(
     return { success: false, error: errorMessage }
   }
 }
+
 // ============ ROLE GRANTING FUNCTIONS ============
 
 /**
@@ -123,14 +123,8 @@ export async function grantAdminRole(
       account: address as `0x${string}`,
     });
 
-    const publicClient = getPublicClient();
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-    if (receipt.status === 'success') {
-      return { success: true, hash };
-    } else {
-      throw new Error("Transaction failed");
-    }
+    // Return immediately with hash
+    return { success: true, hash };
   } catch (error) {
     console.error("Error granting admin role:", error);
     
@@ -173,14 +167,8 @@ export async function grantSuperAdminRole(
       account: address as `0x${string}`,
     });
 
-    const publicClient = getPublicClient();
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-    if (receipt.status === 'success') {
-      return { success: true, hash };
-    } else {
-      throw new Error("Transaction failed");
-    }
+    // Return immediately with hash
+    return { success: true, hash };
   } catch (error) {
     console.error("Error granting super admin role:", error);
     
@@ -227,14 +215,8 @@ export async function revokeAdminRole(
       account: address as `0x${string}`,
     });
 
-    const publicClient = getPublicClient();
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-    if (receipt.status === 'success') {
-      return { success: true, hash };
-    } else {
-      throw new Error("Transaction failed");
-    }
+    // Return immediately with hash
+    return { success: true, hash };
   } catch (error) {
     console.error("Error revoking admin role:", error);
     
@@ -277,14 +259,8 @@ export async function revokeSuperAdminRole(
       account: address as `0x${string}`,
     });
 
-    const publicClient = getPublicClient();
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-    if (receipt.status === 'success') {
-      return { success: true, hash };
-    } else {
-      throw new Error("Transaction failed");
-    }
+    // Return immediately with hash
+    return { success: true, hash };
   } catch (error) {
     console.error("Error revoking super admin role:", error);
     
@@ -306,6 +282,7 @@ export async function revokeSuperAdminRole(
 }
 
 // ============ ROLE CHECKING FUNCTIONS ============
+// These remain unchanged as they're read operations
 
 /**
  * Check if an address has admin role
@@ -531,6 +508,7 @@ export async function checkSpecificPermission(
 }
 
 // ============ ADMIN LISTING FUNCTIONS ============
+// These remain unchanged as they're read operations
 
 /**
  * Get all admin addresses
@@ -613,6 +591,16 @@ export async function getSuperAdminCount(): Promise<number> {
 }
 
 /**
+ * AdminInfo interface for admin details
+ */
+export interface AdminInfo {
+  address: `0x${string}`;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isInitialSuperAdmin: boolean;
+}
+
+/**
  * Get detailed admin information for multiple addresses
  */
 export async function getAdminInfo(addresses: `0x${string}`[]): Promise<AdminInfo[]> {
@@ -680,114 +668,8 @@ export async function canPerformSuperAdminActions(): Promise<boolean> {
   return superAdminStatus;
 }
 
-// ============ IREC MINTING FUNCTION ============
 
-//mint irec nft
-export async function mintIREC(
-  projectAddress: `0x${string}`,
-  metadataURI: string
-): Promise<{ success: boolean; hash?: `0x${string}`; tokenId?: string; error?: string }> {
-  try {
-    // Get wallet client
-    const { walletClient, address } = await getWalletClient()
-         
-    if (!walletClient) {
-      throw new Error("Wallet not connected")
-    } 
 
-    // Execute the transaction
-    const hash = await walletClient.writeContract({
-      address: IrecNFTAddress as `0x${string}`,
-      abi: IrecNFTABI,
-      functionName: 'mintIREC',
-      args: [projectAddress, metadataURI],
-      chain: sepolia,
-      account: address as `0x${string}`,
-    })
-
-    // Wait for transaction confirmation
-    const publicClient = getPublicClient()
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    })
-
-    if (receipt.status === 'success') {
-      
-      let tokenId: string | undefined;
-      
-      // Parse the logs to get the token ID from IRECMinted event
-      if (receipt.logs && receipt.logs.length > 0) {
-        try {
-          
-          const mintEvent = receipt.logs.find(log => 
-            log.topics[0] === '0x...' //
-          );
-          
-          if (mintEvent) {
-            // Decode the token ID from the event data
-            // tokenId = decodeEventLog({ ... });
-          }
-        } catch (logError) {
-          console.warn("Could not parse token ID from transaction logs:", logError);
-        }
-      }
-
-      return { success: true, hash, tokenId }
-    } else {
-      throw new Error("Transaction failed")
-    }
-   } catch (error) {
-    console.error("Error minting IREC:", error)
-         
-    let errorMessage = "Failed to mint IREC NFT"
-    if (error instanceof Error) {
-      if (error.message.includes("ADMIN_ROLE")) {
-        errorMessage = "Access denied: Only admins can mint IREC NFTs"
-      } else if (error.message.includes("Project not approved")) {
-        errorMessage = "Project is not approved for minting"
-      } else if (error.message.includes("User rejected")) {
-        errorMessage = "Transaction was rejected by user"
-      } else {
-        errorMessage = error.message
-      }
-    }
-         
-    return { success: false, error: errorMessage }
-  }
-}
-
-// ============ TYPE DEFINITIONS ============
-
-export interface AdminInfo {
-  address: `0x${string}`;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-  isInitialSuperAdmin: boolean;
-}
-
-export interface TransactionResult {
-  success: boolean;
-  hash?: `0x${string}`;
-  error?: string;
-}
-
-// ============ UTILITY FUNCTIONS ============
-
-/**
- * Validate if an address is a valid Ethereum address
- */
-export function isValidAddress(address: string): address is `0x${string}` {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-}
-
-/**
- * Format address for display (truncate middle)
- */
-export function formatAddress(address: `0x${string}`, chars: number = 6): string {
-  if (!address) return '';
-  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
-}
-//list NFTs
 export async function listNFT(
   tokenId: bigint,
   price: bigint,
@@ -795,7 +677,7 @@ export async function listNFT(
   energyPerToken: bigint,
   tokenName: string,
   tokenSymbol: string
-): Promise<{ success: boolean; hash?: `0x${string}`; listingId?: string; error?: string }> {
+): Promise<{ success: boolean; hash?: `0x${string}`; error?: string }> {
   try {
     // Get wallet client
     const { walletClient, address } = await getWalletClient()
@@ -804,7 +686,7 @@ export async function listNFT(
       throw new Error("Wallet not connected")
     } 
 
-    // Execute the transaction
+    // Execute the transaction and return hash immediately
     const hash = await walletClient.writeContract({
       address: MarketplaceAddress as `0x${string}`, 
       abi: marketplaceABI, 
@@ -814,37 +696,8 @@ export async function listNFT(
       account: address as `0x${string}`,
     })
 
-    // Wait for transaction confirmation
-    const publicClient = getPublicClient()
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    })
-
-    if (receipt.status === 'success') {
-      // Extract listing ID from transaction logs if needed
-      let listingId: string | undefined;
-      
-      // Parse the logs to get the listing ID from NFTListed event
-      if (receipt.logs && receipt.logs.length > 0) {
-        try {
-          
-          const listEvent = receipt.logs.find(log => 
-            log.topics[0] === '0x...' 
-          );
-          
-          if (listEvent) {
-            // Decode the listing ID from the event data
-            // listingId = decodeEventLog({ ... });
-          }
-        } catch (logError) {
-          console.warn("Could not parse listing ID from transaction logs:", logError);
-        }
-      }
-
-      return { success: true, hash, listingId }
-    } else {
-      throw new Error("Transaction failed")
-    }
+    // Return immediately with hash - don't wait for receipt
+    return { success: true, hash }
    } catch (error) {
     console.error("Error listing NFT:", error)
          
@@ -883,7 +736,7 @@ export async function purchaseNFT(
       throw new Error("Wallet not connected")
     } 
 
-    // Execute the transaction
+    // Execute the transaction and return hash immediately
     const hash = await walletClient.writeContract({
       address: MarketplaceAddress as `0x${string}`, 
       abi: marketplaceABI, 
@@ -894,17 +747,8 @@ export async function purchaseNFT(
       account: address as `0x${string}`,
     })
 
-    // Wait for transaction confirmation
-    const publicClient = getPublicClient()
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    })
-
-    if (receipt.status === 'success') {
-      return { success: true, hash }
-    } else {
-      throw new Error("Transaction failed")
-    }
+    // Return immediately with hash - don't wait for receipt
+    return { success: true, hash }
    } catch (error) {
     console.error("Error purchasing NFT:", error)
          
@@ -996,78 +840,141 @@ export async function calculateRequiredPayment(
     return { success: false, error: errorMessage }
   }
 }
-//Fractionalize NFT
+// Fractionalize NFT Hook
+// Fractionalize NFT Hook
 export async function fractionalize(
   tokenId: bigint,
   totalEnergy: bigint,
   energyPerToken: bigint,
   tokenName: string,
   tokenSymbol: string
-): Promise<{ success: boolean; hash?: `0x${string}`; fractionalTokenAddress?: `0x${string}`; error?: string }> {
+): Promise<{ 
+  success: boolean; 
+  transactionHash?: `0x${string}`;
+  error?: string 
+}> {
   try {
-    // Get wallet client
-    const { walletClient, address } = await getWalletClient()
-         
-    if (!walletClient) {
-      throw new Error("Wallet not connected")
-    } 
+    // Get public client for read operations and wallet client for write operations
+    const publicClient = getPublicClient()
+    const walletClientResult = await getWalletClient()
+    
+    if (!publicClient || !walletClientResult.walletClient) {
+      throw new Error("Client not available")
+    }
 
-    // Execute the transaction
+    const { walletClient, address: account } = walletClientResult
+
+    if (!account) {
+      throw new Error("No account connected")
+    }
+
+    // First, check if the user owns the NFT
+    const nftOwner = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'ownerOf',
+      args: [tokenId],
+    }) as `0x${string}`
+
+    if (nftOwner.toLowerCase() !== account.toLowerCase()) {
+      throw new Error("You don't own this NFT")
+    }
+
+    // Check if NFT is already fractionalized
+    const existingFractionalToken = await publicClient.readContract({
+      address: FractionalizationAddress as `0x${string}`,
+      abi: fractionalizationABI,
+      functionName: 'getFractionalTokenAddress',
+      args: [tokenId],
+    }) as `0x${string}`
+
+    if (existingFractionalToken !== '0x0000000000000000000000000000000000000000') {
+      throw new Error("NFT is already fractionalized")
+    }
+
+    // Check if the user is an approved project
+    const isApproved = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'isApprovedProject',
+      args: [account],
+    }) as boolean
+
+    if (!isApproved) {
+      throw new Error("Not an approved project")
+    }
+
+    // Validate energy parameters
+    const MIN_ENERGY_PER_TOKEN = 50n
+    if (energyPerToken < MIN_ENERGY_PER_TOKEN) {
+      throw new Error("Minimum energy per token is 50kW")
+    }
+
+    if (totalEnergy < energyPerToken) {
+      throw new Error("Energy per token exceeds total energy")
+    }
+
+    if (totalEnergy % energyPerToken !== 0n) {
+      throw new Error("Energy per token must divide total energy evenly")
+    }
+
+    // Check if the fractionalization contract is approved to transfer the NFT
+    const approvedAddress = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'getApproved',
+      args: [tokenId],
+    }) as `0x${string}`
+
+    const isApprovedForAll = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'isApprovedForAll',
+      args: [account, FractionalizationAddress as `0x${string}`],
+    }) as boolean
+
+    // If not approved, we need to approve first
+    if (approvedAddress.toLowerCase() !== (FractionalizationAddress as string).toLowerCase() && !isApprovedForAll) {
+      // Approve the fractionalization contract to transfer this specific NFT
+      await walletClient.writeContract({
+        address: IrecNFTAddress as `0x${string}`,
+        abi: IrecNFTABI,
+        functionName: 'approve',
+        args: [FractionalizationAddress as `0x${string}`, tokenId],
+        account: account as `0x${string}`,
+        chain: sepolia,
+      })
+    }
+
+    // Now call the fractionalize function
     const hash = await walletClient.writeContract({
-      address: FractionalizationAddress as `0x${string}`, // Replace with your fractionalization contract address
-      abi: fractionalizationABI, // Replace with your fractionalization contract ABI
+      address: FractionalizationAddress as `0x${string}`,
+      abi: fractionalizationABI,
       functionName: 'fractionalize',
       args: [tokenId, totalEnergy, energyPerToken, tokenName, tokenSymbol],
+      account: account as `0x${string}`,
       chain: sepolia,
-      account: address as `0x${string}`,
     })
 
-    // Wait for transaction confirmation
-    const publicClient = getPublicClient()
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    })
-
-    if (receipt.status === 'success') {
-      // Extract fractional token address from transaction logs
-      let fractionalTokenAddress: `0x${string}` | undefined;
-      
-      // Parse the logs to get the token address from NFTFractionalized event
-      if (receipt.logs && receipt.logs.length > 0) {
-        try {
-          // This assumes you have the event ABI to decode the logs
-          // You might need to adjust this based on your event structure
-          const fractionalizeEvent = receipt.logs.find(log => 
-            log.topics[0] === '0x...' // Replace with actual NFTFractionalized event signature hash
-          );
-          
-          if (fractionalizeEvent) {
-            // Decode the fractional token address from the event data
-            // fractionalTokenAddress = decodeEventLog({ ... });
-          }
-        } catch (logError) {
-          console.warn("Could not parse fractional token address from transaction logs:", logError);
-        }
-      }
-
-      return { success: true, hash, fractionalTokenAddress }
-    } else {
-      throw new Error("Transaction failed")
+    // Return immediately with transaction hash
+    // Note: The fractionalization contract handles the NFT transfer internally
+    return {
+      success: true,
+      transactionHash: hash,
     }
-   } catch (error) {
+
+  } catch (error) {
     console.error("Error fractionalizing NFT:", error)
-         
+    
     let errorMessage = "Failed to fractionalize NFT"
     if (error instanceof Error) {
       if (error.message.includes("NFT already fractionalized")) {
-        errorMessage = "This NFT has already been fractionalized"
-      } else if (error.message.includes("Not the owner of the NFT")) {
-        errorMessage = "You are not the owner of this NFT"
+        errorMessage = "NFT is already fractionalized"
+      } else if (error.message.includes("Not the owner")) {
+        errorMessage = "You don't own this NFT"
       } else if (error.message.includes("Not an approved project")) {
-        errorMessage = "Only approved projects can fractionalize NFTs"
-      } else if (error.message.includes("Invalid energy value")) {
-        errorMessage = "Energy value must be greater than zero"
-      } else if (error.message.includes("Minimum energy per token is 50kW")) {
+        errorMessage = "You are not an approved project"
+      } else if (error.message.includes("Minimum energy per token")) {
         errorMessage = "Minimum energy per token is 50kW"
       } else if (error.message.includes("Energy per token exceeds total energy")) {
         errorMessage = "Energy per token cannot exceed total energy"
@@ -1079,82 +986,50 @@ export async function fractionalize(
         errorMessage = error.message
       }
     }
-         
+    
     return { success: false, error: errorMessage }
   }
 }
 
-// Helper function to validate fractionalization parameters before transaction
-export async function validateFractionalizationParams(
-  tokenId: bigint,
-  totalEnergy: bigint,
-  energyPerToken: bigint,
-  userAddress: `0x${string}`
-): Promise<{ success: boolean; tokenCount?: bigint; error?: string }> {
+// Helper hook to get NFT energy details
+export async function getNFTEnergyDetails(
+  tokenId: bigint
+): Promise<{ 
+  success: boolean; 
+  totalEnergy?: bigint;
+  fractionalToken?: `0x${string}`;
+  tokenCount?: bigint;
+  energyPerToken?: bigint;
+  error?: string 
+}> {
   try {
     const publicClient = getPublicClient()
     
-    // Check if NFT is already fractionalized
-    const existingFractionalToken = await publicClient.readContract({
+    if (!publicClient) {
+      throw new Error("Public client not available")
+    }
+
+    const result = await publicClient.readContract({
       address: FractionalizationAddress as `0x${string}`,
       abi: fractionalizationABI,
-      functionName: 'nftToFractionalToken',
+      functionName: 'getNFTEnergyDetails',
       args: [tokenId],
-    }) as `0x${string}`
-    
-    if (existingFractionalToken !== '0x0000000000000000000000000000000000000000') {
-      throw new Error("NFT already fractionalized")
+    }) as [bigint, `0x${string}`, bigint, bigint]
+
+    const [totalEnergy, fractionalToken, tokenCount, energyPerToken] = result
+
+    return {
+      success: true,
+      totalEnergy,
+      fractionalToken,
+      tokenCount,
+      energyPerToken
     }
-    
-    // Check NFT ownership
-    const owner = await publicClient.readContract({
-      address: IrecNFTAddress as `0x${string}`,
-      abi: IrecNFTABI,
-      functionName: 'ownerOf',
-      args: [tokenId],
-    }) as `0x${string}`
-    
-    if (owner.toLowerCase() !== userAddress.toLowerCase()) {
-      throw new Error("Not the owner of the NFT")
-    }
-    
-    // Check if user is approved project
-    const isApproved = await publicClient.readContract({
-      address: IrecNFTAddress as `0x${string}`,
-      abi: IrecNFTABI,
-      functionName: 'isApprovedProject',
-      args: [userAddress],
-    }) as boolean
-    
-    if (!isApproved) {
-      throw new Error("Not an approved project")
-    }
-    
-    // Validate energy parameters
-    if (totalEnergy <= 0n) {
-      throw new Error("Invalid energy value")
-    }
-    
-    const MIN_ENERGY_PER_TOKEN = 50n; // Assuming 50kW minimum
-    if (energyPerToken < MIN_ENERGY_PER_TOKEN) {
-      throw new Error("Minimum energy per token is 50kW")
-    }
-    
-    if (energyPerToken > totalEnergy) {
-      throw new Error("Energy per token exceeds total energy")
-    }
-    
-    if (totalEnergy % energyPerToken !== 0n) {
-      throw new Error("Energy per token must divide total energy evenly")
-    }
-    
-    const tokenCount = totalEnergy / energyPerToken;
-    
-    return { success: true, tokenCount }
+
   } catch (error) {
-    console.error("Error validating fractionalization parameters:", error)
+    console.error("Error getting NFT energy details:", error)
     
-    let errorMessage = "Failed to validate parameters"
+    let errorMessage = "Failed to get NFT energy details"
     if (error instanceof Error) {
       errorMessage = error.message
     }
@@ -1162,10 +1037,98 @@ export async function validateFractionalizationParams(
     return { success: false, error: errorMessage }
   }
 }
-//Redeem NFT
-export async function redeem(
-  fractionalTokenAddress: `0x${string}`
-): Promise<{ success: boolean; hash?: `0x${string}`; nftId?: string; error?: string }> {
+
+// Helper hook to set NFT energy value (before fractionalization)
+export async function setNFTEnergyValue(
+  tokenId: bigint,
+  energyValue: bigint
+): Promise<{ 
+  success: boolean; 
+  transactionHash?: `0x${string}`;
+  error?: string 
+}> {
+  try {
+    const publicClient = getPublicClient()
+    const walletClientResult = await getWalletClient()
+    
+    if (!publicClient || !walletClientResult.walletClient) {
+      throw new Error("Client not available")
+    }
+
+    const { walletClient, address: account } = walletClientResult
+
+    if (!account) {
+      throw new Error("No account connected")
+    }
+
+    // Verify ownership
+    const nftOwner = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'ownerOf',
+      args: [tokenId],
+    }) as `0x${string}`
+
+    if (nftOwner.toLowerCase() !== account.toLowerCase()) {
+      throw new Error("You don't own this NFT")
+    }
+
+    if (energyValue <= 0n) {
+      throw new Error("Energy value must be greater than zero")
+    }
+
+    const hash = await walletClient.writeContract({
+      address: FractionalizationAddress as `0x${string}`,
+      abi: fractionalizationABI,
+      functionName: 'setNFTEnergyValue',
+      args: [tokenId, energyValue],
+      chain: sepolia,
+      account: account as `0x${string}`,
+    })
+
+    return {
+      success: true,
+      transactionHash: hash,
+    }
+
+  } catch (error) {
+    console.error("Error setting NFT energy value:", error)
+    
+    let errorMessage = "Failed to set NFT energy value"
+    if (error instanceof Error) {
+      if (error.message.includes("Not the owner")) {
+        errorMessage = "You don't own this NFT"
+      } else if (error.message.includes("Energy value must be greater than zero")) {
+        errorMessage = "Energy value must be greater than zero"
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Validate if an address is a valid Ethereum address
+ */
+export function isValidAddress(address: string): address is `0x${string}` {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+/**
+ * Format address for display (truncate middle)
+ */
+export function formatAddress(address: `0x${string}`, chars: number = 6): string {
+  if (!address) return '';
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+}
+
+//MINT IREC NFT
+export async function mintIREC(
+  projectAddress: `0x${string}`,
+  metadataURI: string
+): Promise<{ success: boolean; hash?: `0x${string}`; tokenId?: bigint; error?: string }> {
   try {
     // Get wallet client
     const { walletClient, address } = await getWalletClient()
@@ -1174,59 +1137,27 @@ export async function redeem(
       throw new Error("Wallet not connected")
     } 
 
-    // Execute the transaction
+    // Execute the transaction and return hash immediately
     const hash = await walletClient.writeContract({
-      address: FractionalizationAddress as `0x${string}`, // Replace with your fractionalization contract address
-      abi: fractionalizationABI, // Replace with your fractionalization contract ABI
-      functionName: 'redeem',
-      args: [fractionalTokenAddress],
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'mintIREC',
+      args: [projectAddress, metadataURI],
       chain: sepolia,
       account: address as `0x${string}`,
     })
 
-    // Wait for transaction confirmation
-    const publicClient = getPublicClient()
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    })
-
-    if (receipt.status === 'success') {
-      // Extract NFT ID from transaction logs
-      let nftId: string | undefined;
-      
-      // Parse the logs to get the NFT ID from NFTRedeemed event
-      if (receipt.logs && receipt.logs.length > 0) {
-        try {
-          // This assumes you have the event ABI to decode the logs
-          // You might need to adjust this based on your event structure
-          const redeemEvent = receipt.logs.find(log => 
-            log.topics[0] === '0x...' // Replace with actual NFTRedeemed event signature hash
-          );
-          
-          if (redeemEvent) {
-            // Decode the NFT ID from the event data
-            // nftId = decodeEventLog({ ... });
-          }
-        } catch (logError) {
-          console.warn("Could not parse NFT ID from transaction logs:", logError);
-        }
-      }
-
-      return { success: true, hash, nftId }
-    } else {
-      throw new Error("Transaction failed")
-    }
+    // Return immediately with hash - don't wait for receipt
+    return { success: true, hash }
    } catch (error) {
-    console.error("Error redeeming NFT:", error)
+    console.error("Error minting IREC:", error)
          
-    let errorMessage = "Failed to redeem NFT"
+    let errorMessage = "Failed to mint IREC"
     if (error instanceof Error) {
-      if (error.message.includes("Invalid token address")) {
-        errorMessage = "Invalid fractional token address"
-      } else if (error.message.includes("Token not linked to any NFT")) {
-        errorMessage = "This token is not linked to any NFT"
-      } else if (error.message.includes("Must own all fractional tokens")) {
-        errorMessage = "You must own all fractional tokens to redeem the NFT"
+      if (error.message.includes("ADMIN_ROLE")) {
+        errorMessage = "Access denied: Only admins can mint IREC tokens"
+      } else if (error.message.includes("Project not approved")) {
+        errorMessage = "Project is not approved for minting"
       } else if (error.message.includes("User rejected")) {
         errorMessage = "Transaction was rejected by user"
       } else {
@@ -1237,168 +1168,588 @@ export async function redeem(
     return { success: false, error: errorMessage }
   }
 }
+//Get IREC Details
+export async function getIRECDetails(
+  tokenId: bigint
+): Promise<{ success: boolean; metadata?: string; tokenOwner?: `0x${string}`; error?: string }> {
+  try {
+    // Get public client for read operations
+    const publicClient = getPublicClient()
+         
+    if (!publicClient) {
+      throw new Error("Public client not available")
+    }
 
-// Helper function to validate redemption eligibility before transaction
-export async function validateRedemption(
-  fractionalTokenAddress: `0x${string}`,
-  userAddress: `0x${string}`
-): Promise<{ 
-  success: boolean; 
-  nftId?: bigint; 
-  userBalance?: bigint; 
-  totalSupply?: bigint; 
-  canRedeem?: boolean;
-  error?: string 
-}> {
+    // Call the contract's getIRECDetails function
+    const result = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'getIRECDetails',
+      args: [tokenId],
+    }) as [string, `0x${string}`]
+
+    // Extract metadata and tokenOwner from the result tuple
+    const [metadata, tokenOwner] = result
+
+    return { 
+      success: true, 
+      metadata, 
+      tokenOwner 
+    }
+   } catch (error) {
+    console.error("Error getting IREC details:", error)
+         
+    let errorMessage = "Failed to get IREC details"
+    if (error instanceof Error) {
+      if (error.message.includes("IREC does not exist")) {
+        errorMessage = "IREC token does not exist"
+      } else if (error.message.includes("Invalid token ID")) {
+        errorMessage = "Invalid token ID provided"
+      } else {
+        errorMessage = error.message
+      }
+    }
+         
+    return { success: false, error: errorMessage }
+  }
+}
+
+
+// Hook to get user's listed NFTs
+export async function getUserListings(
+  userAddress: string,
+  startId?: bigint,
+  count: bigint = 10n
+): Promise<{ success: boolean; listings?: { listingId: bigint; tokenId: bigint; price: bigint; seller: string; }[]; error?: string }> {
   try {
     const publicClient = getPublicClient()
     
-    // Validate token address
-    if (fractionalTokenAddress === '0x0000000000000000000000000000000000000000') {
-      throw new Error("Invalid token address")
-    }
+    const result = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'getActiveListings',
+      args: [startId || 1n, count],
+    }) as [bigint[], bigint[], bigint[], string[]]
+
+    const [listingIds, tokenIds, prices, sellers] = result
     
-    // Get NFT ID linked to this token
-    const nftId = await publicClient.readContract({
-      address: FractionalizationAddress as `0x${string}`,
-      abi: fractionalizationABI,
-      functionName: 'tokenToNFT',
-      args: [fractionalTokenAddress],
-    }) as bigint
-    
-    // Verify reverse mapping (token is actually linked to an NFT)
-    const linkedToken = await publicClient.readContract({
-      address: FractionalizationAddress as `0x${string}`,
-      abi: fractionalizationABI,
-      functionName: 'nftToFractionalToken',
-      args: [nftId],
-    }) as `0x${string}`
-    
-    if (linkedToken.toLowerCase() !== fractionalTokenAddress.toLowerCase()) {
-      throw new Error("Token not linked to any NFT")
-    }
-    
-    // Get user's fractional token balance
-    const userBalance = await publicClient.readContract({
-      address: FractionalizationAddress as `0x${string}`,
-      abi: fractionalizationABI, 
-      functionName: 'balanceOf',
-      args: [userAddress],
-    }) as bigint
-    
-    // Get total supply of fractional tokens
-    const totalSupply = await publicClient.readContract({
-      address: FractionalizationAddress as `0x${string}`,
-      abi: fractionalizationABI,
-      functionName: 'totalSupply',
-      args: [],
-    }) as bigint
-    
-    // Check if user owns all tokens
-    const canRedeem = userBalance === totalSupply;
-    
-    if (!canRedeem) {
-      throw new Error("Must own all fractional tokens")
-    }
-    
-    return { 
-      success: true, 
-      nftId, 
-      userBalance, 
-      totalSupply, 
-      canRedeem: true 
-    }
+    // Filter listings by user address
+    const userListings = listingIds
+      .map((id, index) => ({
+        listingId: id,
+        tokenId: tokenIds[index],
+        price: prices[index],
+        seller: sellers[index],
+      }))
+      .filter(listing => listing.seller.toLowerCase() === userAddress.toLowerCase())
+
+    return { success: true, listings: userListings }
   } catch (error) {
-    console.error("Error validating redemption:", error)
+    console.error("Error fetching user listings:", error)
+    return { success: false, error: "Failed to fetch user listings" }
+  }
+}
+
+// Hook to cancel a listing
+export async function cancelListing(
+  listingId: bigint
+): Promise<{ success: boolean; hash?: `0x${string}`; error?: string }> {
+  try {
+    const { walletClient, address } = await getWalletClient()
     
-    let errorMessage = "Failed to validate redemption"
+    if (!walletClient) {
+      throw new Error("Wallet not connected")
+    }
+
+    const hash = await walletClient.writeContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'cancelListing',
+      args: [listingId],
+      chain: sepolia,
+      account: address as `0x${string}`,
+    })
+
+    return { success: true, hash }
+  } catch (error) {
+    console.error("Error cancelling listing:", error)
+    
+    let errorMessage = "Failed to cancel listing"
     if (error instanceof Error) {
-      errorMessage = error.message
+      if (error.message.includes("Listing not active")) {
+        errorMessage = "This listing is not active"
+      } else if (error.message.includes("Not authorized")) {
+        errorMessage = "You are not authorized to cancel this listing"
+      } else if (error.message.includes("User rejected")) {
+        errorMessage = "Transaction was rejected by user"
+      } else {
+        errorMessage = error.message
+      }
     }
     
     return { success: false, error: errorMessage }
   }
 }
 
-// Helper function to get fractional token info
-export async function getFractionalToken(
-  fractionalTokenAddress: `0x${string}`
-): Promise<{ 
+// ListingDetails interface for detailed listing information
+export interface ListingDetails {
+  listingId: bigint;
+  tokenId: bigint;
+  seller: string;
+  price: bigint;
+  active: boolean;
+  totalEnergy: bigint;
+  energyPerToken: bigint;
+  tokenName: string;
+  tokenSymbol: string;
+  canBeFractionalized: boolean;
+}
+
+// Hook to get detailed listing information
+export async function getListingDetails(
+  listingId: bigint
+): Promise<{ success: boolean; listing?: ListingDetails; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    // Get basic listing details
+    const basicDetails = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'getListingDetails',
+      args: [listingId],
+    }) as [string, bigint, boolean, bigint]
+
+    const [seller, price, active, tokenId] = basicDetails
+
+    // Get fractionalization details
+    const fractionalDetails = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'getListingFractionalizationDetails',
+      args: [listingId],
+    }) as [bigint, bigint, string, string]
+
+    const [totalEnergy, energyPerToken, tokenName, tokenSymbol] = fractionalDetails
+
+    // Check if can be fractionalized
+    const canBeFractionalized = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'canBeFractionalized',
+      args: [listingId],
+    }) as boolean
+
+    const listing: ListingDetails = {
+      listingId,
+      tokenId,
+      seller,
+      price,
+      active,
+      totalEnergy,
+      energyPerToken,
+      tokenName,
+      tokenSymbol,
+      canBeFractionalized,
+    }
+
+    return { success: true, listing }
+  } catch (error) {
+    console.error("Error fetching listing details:", error)
+    return { success: false, error: "Failed to fetch listing details" }
+  }
+}
+
+// Hook to get all active listings with pagination
+export async function getActiveListings(
+  startId: bigint = 1n,
+  count: bigint = 20n
+): Promise<{ success: boolean; listings?: ListingDetails[]; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    const result = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'getActiveListings',
+      args: [startId, count],
+    }) as [bigint[], bigint[], bigint[], string[]]
+
+    const [listingIds, tokenIds, prices, sellers] = result
+    
+    // Fetch detailed listing info for each listingId to match ListingDetails interface
+    const listings: ListingDetails[] = await Promise.all(
+      listingIds.map(async (id, index) => {
+        const detailsResult = await getListingDetails(id);
+        if (detailsResult.success && detailsResult.listing) {
+          return detailsResult.listing;
+        }
+        // fallback: fill with minimal info and defaults if details fetch fails
+        return {
+          listingId: id,
+          tokenId: tokenIds[index],
+          price: prices[index],
+          seller: sellers[index],
+          active: false,
+          totalEnergy: 0n,
+          energyPerToken: 0n,
+          tokenName: "",
+          tokenSymbol: "",
+          canBeFractionalized: false,
+        };
+      })
+    );
+
+    return { success: true, listings }
+  } catch (error) {
+    console.error("Error fetching active listings:", error)
+    return { success: false, error: "Failed to fetch active listings" }
+  }
+}
+
+// Hook to check platform fee
+export async function getPlatformFee(): Promise<{ success: boolean; feePercentage?: bigint; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    const feePercentage = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'platformFeePercentage',
+    }) as bigint
+
+    return { success: true, feePercentage }
+  } catch (error) {
+    console.error("Error fetching platform fee:", error)
+    return { success: false, error: "Failed to fetch platform fee" }
+  }
+}
+
+// Hook to calculate platform fee for a given amount
+export async function calculatePlatformFee(
+  amount: bigint
+): Promise<{ success: boolean; fee?: bigint; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    const fee = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'calculatePlatformFee',
+      args: [amount],
+    }) as bigint
+
+    return { success: true, fee }
+  } catch (error) {
+    console.error("Error calculating platform fee:", error)
+    return { success: false, error: "Failed to calculate platform fee" }
+  }
+}
+
+// Define an interface for fractional token info
+export interface FractionalTokenInfo {
+  address: string;
+  totalSupply: bigint;
+  energyPerToken: bigint;
+  totalEnergyValue: bigint;
+}
+
+// Hook to get fractional token information for an NFT
+export async function getFractionalTokenInfo(
+  tokenId: bigint
+): Promise<{ success: boolean; tokenInfo?: FractionalTokenInfo | null; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    // This would require the fractionalization contract address and ABI
+    // You'll need to add these to your constants
+    const fractionalTokenAddress = await publicClient.readContract({
+      address: FractionalizationAddress as `0x${string}`,
+      abi: fractionalizationABI, 
+      functionName: 'nftToFractionalToken',
+      args: [tokenId],
+    }) as string
+
+    if (fractionalTokenAddress === "0x0000000000000000000000000000000000000000") {
+      return { success: true, tokenInfo: null }
+    }
+
+    // Get token details if it exists
+    const [totalSupply, energyPerToken, totalEnergyValue] = await Promise.all([
+      publicClient.readContract({
+        address: fractionalTokenAddress as `0x${string}`,
+        abi: fractionalTokenABI, // Use the correct ABI for all calls
+        functionName: 'totalSupply',
+      }) as Promise<bigint>,
+      publicClient.readContract({
+        address: fractionalTokenAddress as `0x${string}`,
+        abi: fractionalTokenABI,
+        functionName: 'energyPerToken',
+      }) as Promise<bigint>,
+      publicClient.readContract({
+        address: fractionalTokenAddress as `0x${string}`,
+        abi: fractionalTokenABI,
+        functionName: 'totalEnergyValue',
+      }) as Promise<bigint>
+    ])
+
+    const tokenInfo: FractionalTokenInfo = {
+      address: fractionalTokenAddress,
+      totalSupply,
+      energyPerToken,
+      totalEnergyValue,
+    }
+
+    return { success: true, tokenInfo }
+  } catch (error) {
+    console.error("Error fetching fractional token info:", error)
+    return { success: false, error: "Failed to fetch fractional token info" }
+  }
+}
+
+// Hook to check user's fractional token balance
+export async function getUserFractionalBalance(
+ FractionalTokenAddress: string,
+  userAddress: string
+): Promise<{ success: boolean; balance?: bigint; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    const balance = await publicClient.readContract({
+      address: FractionalTokenAddress as `0x${string}`,
+      abi: fractionalTokenABI, 
+      functionName: 'balanceOf',
+      args: [userAddress],
+    }) as bigint
+
+    return { success: true, balance }
+  } catch (error) {
+    console.error("Error fetching fractional balance:", error)
+    return { success: false, error: "Failed to fetch fractional balance" }
+  }
+}
+
+// Hook to approve marketplace for NFT transfer
+export async function approveMarketplace(
+  IrecNFTAddress: string,
+  tokenId: bigint
+): Promise<{ success: boolean; hash?: `0x${string}`; error?: string }> {
+  try {
+    const { walletClient, address } = await getWalletClient()
+    
+    if (!walletClient) {
+      throw new Error("Wallet not connected")
+    }
+
+    const hash = await walletClient.writeContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI, 
+      functionName: 'approve',
+      args: [MarketplaceAddress, tokenId],
+      chain: sepolia,
+      account: address as `0x${string}`,
+    })
+
+    return { success: true, hash }
+  } catch (error) {
+    console.error("Error approving marketplace:", error)
+    
+    let errorMessage = "Failed to approve marketplace"
+    if (error instanceof Error) {
+      if (error.message.includes("User rejected")) {
+        errorMessage = "Transaction was rejected by user"
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
+    return { success: false, error: errorMessage }
+  }
+}
+
+// Hook to approve marketplace for all NFTs
+export async function setApprovalForAll(
+  IrecNFTAddress: string,
+  approved: boolean = true
+): Promise<{ success: boolean; hash?: `0x${string}`; receipt?: unknown; error?: string }> {
+  try {
+    const { walletClient, address } = await getWalletClient()
+    const publicClient = getPublicClient()
+    
+    if (!walletClient) {
+      throw new Error("Wallet not connected")
+    }
+
+    if (!publicClient) {
+      throw new Error("Public client not available")
+    }
+
+    const hash = await walletClient.writeContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI, // Add ERC721 ABI
+      functionName: 'setApprovalForAll',
+      args: [MarketplaceAddress, approved],
+      chain: sepolia,
+      account: address as `0x${string}`,
+    })
+
+    // Wait for transaction to be confirmed
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: 1, // Wait for at least 1 confirmation
+    })
+
+    // Check if transaction was successful
+    if (receipt.status === 'reverted') {
+      throw new Error('Transaction was reverted')
+    }
+
+    return { success: true, hash, receipt }
+  } catch (error) {
+    console.error("Error setting approval for all:", error)
+    
+    let errorMessage = "Failed to set approval for all"
+    if (error instanceof Error) {
+      if (error.message.includes("User rejected")) {
+        errorMessage = "Transaction was rejected by user"
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
+    return { success: false, error: errorMessage }
+  }
+}
+// Hook to check if marketplace is approved for an NFT
+export async function isMarketplaceApproved(
+  IrecNFTAddress: string,
+  tokenId: bigint,
+  ownerAddress: string
+): Promise<{ success: boolean; isApproved?: boolean; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    // Check specific token approval
+    const approvedAddress = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'getApproved',
+      args: [tokenId],
+    }) as string
+
+    // Check approval for all
+    const isApprovedForAll = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI, // Add ERC721 ABI
+      functionName: 'isApprovedForAll',
+      args: [ownerAddress, MarketplaceAddress],
+    }) as boolean
+
+    const isApproved = approvedAddress.toLowerCase() === MarketplaceAddress.toLowerCase() || isApprovedForAll
+
+    return { success: true, isApproved }
+  } catch (error) {
+    console.error("Error checking marketplace approval:", error)
+    return { success: false, error: "Failed to check marketplace approval" }
+  }
+}
+
+// Hook to get marketplace statistics
+export async function getMarketplaceStats(): Promise<{ 
   success: boolean; 
-  name?: string; 
-  symbol?: string; 
-  totalSupply?: bigint;
-  nftId?: bigint;
-  energyPerToken?: bigint;
-  totalEnergy?: bigint;
+  stats?: { 
+    totalListings: number;
+    activeListings: number;
+    platformFee: bigint;
+  }; 
   error?: string 
 }> {
   try {
     const publicClient = getPublicClient()
     
-    // Get basic ERC-20 info
-    const [name, symbol, totalSupply] = await Promise.all([
-      publicClient.readContract({
-        address: FractionalizationAddress as `0x${string}`,
-        abi: fractionalizationABI,
-        functionName: 'name',
-        args: [],
-      }) as Promise<string>,
-      publicClient.readContract({
-        address: FractionalizationAddress as `0x${string}`,
-        abi: fractionalizationABI,
-        functionName: 'symbol',
-        args: [],
-      }) as Promise<string>,
-      publicClient.readContract({
-        address: FractionalizationAddress as `0x${string}`,
-        abi: fractionalizationABI,
-        functionName: 'totalSupply',
-        args: [],
-      }) as Promise<bigint>
-    ]);
-    
-    // Get NFT ID
-    const nftId = await publicClient.readContract({
-      address: FractionalizationAddress as `0x${string}`,
-      abi: fractionalizationABI,
-      functionName: 'tokenToNFT',
-      args: [fractionalTokenAddress],
+    // Get platform fee
+    const platformFee = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'platformFeePercentage',
     }) as bigint
-    
-    // Get energy info (assuming these are available in your fractional token contract)
-    const [energyPerToken, totalEnergy] = await Promise.all([
-      publicClient.readContract({
-        address: FractionalizationAddress as `0x${string}`,
-        abi: fractionalizationABI,
-        functionName: 'energyPerToken',
-        args: [],
-      }) as Promise<bigint>,
-      publicClient.readContract({
-        address: FractionalizationAddress as `0x${string}`,
-        abi: fractionalizationABI,
-        functionName: 'totalEnergy',
-        args: [],
-      }) as Promise<bigint>
-    ]);
-    
-    return { 
-      success: true, 
-      name, 
-      symbol, 
-      totalSupply, 
-      nftId, 
-      energyPerToken, 
-      totalEnergy 
+
+    // Get active listings to count them
+    const activeListingsResult = await publicClient.readContract({
+      address: MarketplaceAddress as `0x${string}`,
+      abi: marketplaceABI,
+      functionName: 'getActiveListings',
+      args: [1n, 1000n], // Get up to 1000 listings
+    }) as [bigint[], bigint[], bigint[], string[]]
+
+    const stats = {
+      totalListings: activeListingsResult[0].length, // This is a simplified count
+      activeListings: activeListingsResult[0].length,
+      platformFee,
     }
+
+    return { success: true, stats }
   } catch (error) {
-    console.error("Error getting fractional token info:", error)
+    console.error("Error fetching marketplace stats:", error)
+    return { success: false, error: "Failed to fetch marketplace stats" }
+  }
+}
+
+// Hook to search listings by energy criteria
+export async function searchListingsByEnergy(
+  minEnergy?: bigint,
+  maxEnergy?: bigint,
+  startId: bigint = 1n,
+  count: bigint = 20n
+): Promise<{ success: boolean; listings?: ListingDetails[]; error?: string }> {
+  try {
+    // First get all active listings
+    const { success, listings: allListings, error } = await getActiveListings(startId, count)
     
-    let errorMessage = "Failed to get token information"
-    if (error instanceof Error) {
-      errorMessage = error.message
+    if (!success || !allListings) {
+      return { success: false, error }
     }
+
+    // Filter by energy if criteria provided
+    const filteredListings = []
     
-    return { success: false, error: errorMessage }
+    for (const listing of allListings) {
+      const detailsResult = await getListingDetails(listing.listingId)
+      
+      if (detailsResult.success && detailsResult.listing) {
+        const { totalEnergy } = detailsResult.listing
+        
+        const meetsMinCriteria = !minEnergy || totalEnergy >= minEnergy
+        const meetsMaxCriteria = !maxEnergy || totalEnergy <= maxEnergy
+        
+        if (meetsMinCriteria && meetsMaxCriteria) {
+          filteredListings.push(detailsResult.listing)
+        }
+      }
+    }
+
+    return { success: true, listings: filteredListings }
+  } catch (error) {
+    console.error("Error searching listings by energy:", error)
+    return { success: false, error: "Failed to search listings by energy" }
+  }
+}
+
+export async function isApprovedProject(
+  userAddress: string
+): Promise<{ success: boolean; isApproved?: boolean; error?: string }> {
+  try {
+    const publicClient = getPublicClient()
+    
+    const isApproved = await publicClient.readContract({
+      address: IrecNFTAddress as `0x${string}`,
+      abi: IrecNFTABI,
+      functionName: 'isApprovedProject',
+      args: [userAddress],
+    }) as boolean
+
+    return { success: true, isApproved }
+  } catch {
+    return { success: false, error: "Failed to check project approval" }
   }
 }

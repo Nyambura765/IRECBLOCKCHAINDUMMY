@@ -1,10 +1,83 @@
-import  { useState } from 'react';
-import { User, ShoppingCart, Wallet, TrendingUp, Battery, Zap, DollarSign, Package, Eye, ShoppingBag, Plus, Edit3, Trash2, Search, Filter, Award } from 'lucide-react';
+import { useState } from 'react';
+import { User, ShoppingCart, Wallet, TrendingUp, Battery, Zap, DollarSign, Package, Eye, ShoppingBag, Plus, Edit3, Trash2, Search, Filter, Award, X } from 'lucide-react';
+import { fractionalize } from '../../BlockchainServices/irecPlatformHooks';
 
 const IRECDashboard = () => {
   const [activeTab, setActiveTab] = useState('user');
   const [userSubTab, setUserSubTab] = useState('portfolio');
   const [sellerSubTab, setSellerSubTab] = useState('inventory');
+  const [showFractionalizeModal, setShowFractionalizeModal] = useState(false);
+  const [fractionalizeForm, setFractionalizeForm] = useState({
+    tokenId: '',
+    totalEnergy: '',
+    energyPerToken: '',
+    tokenName: '',
+    tokenSymbol: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Handle form submission
+  interface FractionalizeFormFields {
+    tokenId: string;
+    totalEnergy: string;
+    energyPerToken: string;
+    tokenName: string;
+    tokenSymbol: string;
+  }
+
+  const handleFractionalizeSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      // Convert form values to appropriate types
+      const tokenId = BigInt(fractionalizeForm.tokenId);
+      const totalEnergy = BigInt(fractionalizeForm.totalEnergy);
+      const energyPerToken = BigInt(fractionalizeForm.energyPerToken);
+
+      // Call the imported fractionalize function
+      const result = await fractionalize(
+        tokenId,
+        totalEnergy,
+        energyPerToken,
+        fractionalizeForm.tokenName,
+        fractionalizeForm.tokenSymbol
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fractionalize NFT');
+      }
+
+      // Reset form and close modal
+      setFractionalizeForm({
+        tokenId: '',
+        totalEnergy: '',
+        energyPerToken: '',
+        tokenName: '',
+        tokenSymbol: ''
+      });
+      setShowFractionalizeModal(false);
+      alert('NFT fractionalization initiated successfully!');
+
+    } catch (error: unknown) {
+      console.error('Error fractionalizing NFT:', error);
+      if (error instanceof Error) {
+        alert('Error: ' + error.message);
+      } else {
+        alert('An unknown error occurred.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  type FractionalizeFormField = keyof FractionalizeFormFields;
+
+  const handleFormChange = (field: FractionalizeFormField, value: string) => {
+    setFractionalizeForm((prev: FractionalizeFormFields) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
   // Mock data
   const mockUserData = {
@@ -86,6 +159,115 @@ const IRECDashboard = () => {
       }
     ]
   };
+
+  // Fractionalize Modal Component
+  const FractionalizeModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold">Fractionalize NFT</h2>
+          <button
+            onClick={() => setShowFractionalizeModal(false)}
+            className="text-gray-400 hover:text-gray-600"
+            disabled={isSubmitting}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleFractionalizeSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Token ID
+            </label>
+            <input
+              type="number"
+              value={fractionalizeForm.tokenId}
+              onChange={(e) => handleFormChange('tokenId', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Enter NFT Token ID"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Total Energy (in kW)
+            </label>
+            <input
+              type="number"
+              value={fractionalizeForm.totalEnergy}
+              onChange={(e) => handleFormChange('totalEnergy', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="e.g., 1000000 (for 1MW)"
+              required
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-gray-500 mt-1">Enter energy in kilowatts (kW)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Energy Per Token (in kW)
+            </label>
+            <input
+              type="number"
+              value={fractionalizeForm.energyPerToken}
+              onChange={(e) => handleFormChange('energyPerToken', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="e.g., 50 (minimum 50kW)"
+              required
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-gray-500 mt-1">Minimum 50kW per token</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Token Name
+            </label>
+            <input
+              type="text"
+              value={fractionalizeForm.tokenName}
+              onChange={(e) => handleFormChange('tokenName', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="e.g., Solar Farm Alpha Tokens"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Token Symbol
+            </label>
+            <input
+              type="text"
+              value={fractionalizeForm.tokenSymbol}
+              onChange={(e) => handleFormChange('tokenSymbol', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="e.g., SFA"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="flex space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowFractionalizeModal(false)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Processing...' : 'Fractionalize'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 
   const UserDashboard = () => (
     <div className="space-y-6">
@@ -326,7 +508,10 @@ const IRECDashboard = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold">IREC Inventory</h3>
-            <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2">
+            <button 
+              onClick={() => setShowFractionalizeModal(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2"
+            >
               <Plus className="h-4 w-4" />
               <span>Fractionalize NFT</span>
             </button>
@@ -491,6 +676,9 @@ const IRECDashboard = () => {
 
       {/* Dashboard Content */}
       {activeTab === 'user' ? <UserDashboard /> : <SellerDashboard />}
+      
+      {/* Fractionalize Modal */}
+      {showFractionalizeModal && <FractionalizeModal />}
     </div>
   );
 };

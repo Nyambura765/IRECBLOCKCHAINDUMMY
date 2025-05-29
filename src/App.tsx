@@ -1,4 +1,4 @@
-import React from 'react'; // Add React import
+import React from 'react'; 
 import './App.css';
 import './index.css';
 import Main from './pages/main';
@@ -21,13 +21,13 @@ import {
   QueryClientProvider,
   QueryClient,
 } from "@tanstack/react-query";
-import { type ReactNode } from 'react'; // Fix type-only import
+import { type ReactNode } from 'react'; 
 
 // Create a new QueryClient instance with blockchain-optimized settings
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30, // 30 seconds instead of 5 minutes for fresh blockchain data
+      staleTime: 1000 * 30,
       retry: 2,
       refetchOnWindowFocus: true, // Allow refetch for fresh blockchain data
     },

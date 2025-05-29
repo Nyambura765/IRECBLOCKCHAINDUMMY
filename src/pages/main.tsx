@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import IRECAdminDashboard from '../components/Admindashboard';
-import Marketplace from '../components/Marketplace';
+
 import IRECDashboard from '../components/User/SellerDashboard';
+import IRECAdminDashboard from '../components/IRECDashboard/IrecAdminDashboard';
 import Hero from '../components/Hero';
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
+import Marketplace from '../components/Marketplace';
 
-// Main page component that orchestrates all your components
+
 const Main: React.FC = () => {
   const [currentView, setCurrentView] = useState<'hero' | 'dashboard' | 'marketplace' | 'admin'>('hero');
   useAccount(); // Check wallet connection status
@@ -182,7 +183,7 @@ const Main: React.FC = () => {
         {currentView === 'dashboard' && <IRECDashboard />}
         
         {currentView === 'marketplace' && <Marketplace />}
-        
+
         {currentView === 'admin' && <IRECAdminDashboard />}
       </main>
 

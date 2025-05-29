@@ -20,10 +20,7 @@ body {
   /* Remove display: flex and place-items: center */
 }
 
-/* Remove global button styling that was overriding Tailwind */
-/* This was causing the black backgrounds on buttons */
 
-/* Keep only the specific styles you need */
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -62,7 +59,7 @@ body {
   color: #888;
 }
 
-/* Only apply link styles to specific elements if needed */
+
 a {
   font-weight: 500;
   color: #646cff;

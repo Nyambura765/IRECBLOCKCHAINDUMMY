@@ -1,4 +1,4 @@
-// Type definitions for the IREC platform
+
 
 export interface Project {
   address: string;

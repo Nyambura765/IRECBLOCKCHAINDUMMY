@@ -1,7 +1,7 @@
 interface HeroProps {
   onGetStarted: () => void;
   onExploreMarketplace: () => void;
-  onIRECAdmin?: () => void; // Optional since it's not used in the current buttons
+  onIRECAdmin?: () => void; 
 }
 
 export default function Hero({ onGetStarted, onExploreMarketplace }: HeroProps) {

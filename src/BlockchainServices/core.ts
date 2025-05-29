@@ -1,4 +1,4 @@
-export const IrecNFTAddress = "0xEDd21E1C4d8b5607D6014CCD8c0b4CC2e20eD29C"; 
+export const IrecNFTAddress = "0xa884dec4BEE81f84E4881ACF05A596D09a6d2D6d"; 
 export const IrecNFTABI =  [
     {
       "inputs": [
@@ -1287,7 +1287,7 @@ export const IrecNFTABI =  [
     }
   ]
   //fractionalization contract address and ABI
-export const FractionalizationAddress = "0x16fE498cF7e4559D403F587f8b16823bd2072Afc";
+export const FractionalizationAddress = "0xc970a87a58c5f0a79263bE6e9D1a48487f0B0DC6";
 export const fractionalizationABI = [
     {
       "inputs": [
@@ -1744,7 +1744,7 @@ export const fractionalizationABI = [
     }
   ]
   //Marketplace contract address and ABI
-export const MarketplaceAddress = "0xaf19F5E7693121d9D4E735cab741E27688283Be5";
+export const MarketplaceAddress = "0xF606e5e9602F11B05A7741410221eCb86C4E1243";
 export const marketplaceABI =  [
     {
       "inputs": [
@@ -2698,7 +2698,7 @@ export const marketplaceABI =  [
     }
   ]
   //FractionalToken contract address and ABI
-export const FractionalTokenAddress = "0x84DE1Bc0C6F653a54D78C707FDCE2946B6F79394";
+export const FractionalTokenAddress = "0xE673D198c30da6C694C1c83689D6DDCb11c295EB";
 export const fractionalTokenABI = [
     {
       "inputs": [

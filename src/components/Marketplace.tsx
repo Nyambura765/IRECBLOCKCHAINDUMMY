@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, X, Eye, Zap, Coins, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShoppingCart, Plus, X, Eye, Coins, CheckCircle, AlertTriangle, Loader2, Zap } from 'lucide-react';
 
-// Import your blockchain functions
+// Import blockchain functions
 import { 
   listNFT, 
   purchaseNFT, 
-  calculateRequiredPayment, 
-  fractionalize, 
-  validateFractionalizationParams 
+  calculateRequiredPayment,
+  setApprovalForAll,
+  getWalletClient 
 } from '../BlockchainServices/irecPlatformHooks'; 
+
+const IrecNFTAddress = '0xa884dec4BEE81f84E4881ACF05A596D09a6d2D6d';
 
 interface Listing {
   id: number;
@@ -22,7 +24,7 @@ interface Listing {
   tokenSymbol: string;
   fractionalTokenAddress?: string;
   remainingTokens?: bigint;
-  listingId?: bigint; // Blockchain listing ID
+  listingId?: bigint; 
 }
 
 interface PurchaseRequest {
@@ -39,14 +41,21 @@ interface PurchaseRequest {
 interface LoadingState {
   listing: boolean;
   purchasing: boolean;
-  fractionalizing: boolean;
   calculating: boolean;
+  connectingWallet: boolean;
 }
 
 interface TransactionStatus {
   type: 'success' | 'error' | 'info';
   message: string;
   hash?: string;
+}
+
+interface ListNFTResult {
+  success: boolean;
+  hash?: `0x${string}`;
+  error?: string;
+  listingId?: string | number | bigint;
 }
 
 const Marketplace: React.FC = () => {
@@ -56,19 +65,23 @@ const Marketplace: React.FC = () => {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [purchaseMode, setPurchaseMode] = useState<'full' | 'fractional'>('full');
   const [fractionalAmount, setFractionalAmount] = useState<bigint>(1n);
-  const [userAddress] = useState('0x1234...abcd'); // Replace with actual connected wallet address
+  
+  // Dynamic wallet address state
+  const [userAddress, setUserAddress] = useState<string>('');
+  const [isWalletConnected, setIsWalletConnected] = useState<boolean>(false);
+  
   const [platformFee] = useState(2.5); // 2.5%
   const [showCancelConfirm, setShowCancelConfirm] = useState<number | null>(null);
   const [loading, setLoading] = useState<LoadingState>({
     listing: false,
     purchasing: false,
-    fractionalizing: false,
-    calculating: false
+    calculating: false,
+    connectingWallet: false
   });
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatus | null>(null);
   const [requiredPayment, setRequiredPayment] = useState<bigint | null>(null);
 
-  // New listing form state
+  
   const [newListing, setNewListing] = useState({
     tokenId: '',
     price: '',
@@ -78,14 +91,89 @@ const Marketplace: React.FC = () => {
     tokenSymbol: ''
   });
 
-  // Fractionalization form state
-  const [fractionalizationForm, setFractionalizationForm] = useState({
-    tokenId: '',
-    totalEnergy: '',
-    energyPerToken: '',
-    tokenName: '',
-    tokenSymbol: ''
-  });
+  // Get wallet address 
+  useEffect(() => {
+    const checkWalletConnection = async () => {
+      try {
+        setLoading(prev => ({ ...prev, connectingWallet: true }));
+        const { address, walletClient } = await getWalletClient();
+        
+        if (address && walletClient) {
+          setUserAddress(address);
+          setIsWalletConnected(true);
+        } else {
+          setUserAddress('');
+          setIsWalletConnected(false);
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+        setUserAddress('');
+        setIsWalletConnected(false);
+      } finally {
+        setLoading(prev => ({ ...prev, connectingWallet: false }));
+      }
+    };
+
+    checkWalletConnection();
+
+    
+    if (typeof window !== 'undefined' && window.ethereum) {
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (accounts.length > 0) {
+          setUserAddress(accounts[0]);
+          setIsWalletConnected(true);
+        } else {
+          setUserAddress('');
+          setIsWalletConnected(false);
+        }
+      };
+
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      
+      // Cleanup listener
+      return () => {
+        if (window.ethereum?.removeListener) {
+          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        }
+      };
+    }
+  }, []);
+
+  
+  const connectWallet = async () => {
+    try {
+      setLoading(prev => ({ ...prev, connectingWallet: true }));
+      
+      if (typeof window !== 'undefined' && window.ethereum) {
+        // Request account access
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        
+        // Get the wallet client after requesting access
+        const { address, walletClient } = await getWalletClient();
+        
+        if (address && walletClient) {
+          setUserAddress(address);
+          setIsWalletConnected(true);
+          showStatus({
+            type: 'success',
+            message: 'Wallet connected successfully!'
+          });
+        } else {
+          throw new Error('Failed to get wallet address');
+        }
+      } else {
+        throw new Error('No wallet detected. Please install MetaMask or another Web3 wallet.');
+      }
+    } catch (error) {
+      console.error('Error connecting wallet:', error);
+      showStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to connect wallet'
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, connectingWallet: false }));
+    }
+  };
 
   const showStatus = (status: TransactionStatus) => {
     setTransactionStatus(status);
@@ -111,109 +199,141 @@ const Marketplace: React.FC = () => {
            listing.tokenSymbol.length > 0;
   };
 
-  // Calculate required payment when purchase parameters change
+
+
+  
   useEffect(() => {
     if (selectedListing && selectedListing.listingId !== undefined) {
       const calculatePayment = async () => {
         setLoading(prev => ({ ...prev, calculating: true }));
-        
         const amount = purchaseMode === 'full' ? 1n : fractionalAmount;
         const result = await calculateRequiredPayment(
           selectedListing.listingId!,
           purchaseMode === 'fractional',
           amount
         );
-
         if (result.success && result.requiredPayment) {
           setRequiredPayment(result.requiredPayment);
         } else {
           showStatus({
             type: 'error',
-            message: result.error || 'Failed to calculate payment'
+            message: 'Failed to calculate payment'
           });
         }
-        
         setLoading(prev => ({ ...prev, calculating: false }));
       };
-
       calculatePayment();
     }
   }, [selectedListing, purchaseMode, fractionalAmount]);
 
-  const handleCreateListing = async () => {
-    if (!newListing.tokenId || !newListing.price) {
+const handleCreateListing = async () => {
+  if (!newListing.tokenId || !newListing.price) {
+    showStatus({
+      type: 'error',
+      message: 'Token ID and Price are required'
+    });
+    return;
+  }
+  
+  setLoading(prev => ({ ...prev, listing: true }));
+  
+  try {
+    const tokenId = BigInt(newListing.tokenId);
+    const price = parseEther(newListing.price);
+    const totalEnergy = BigInt(newListing.totalEnergy || '0');
+    const energyPerToken = BigInt(newListing.energyPerToken || '0');
+
+    
+    showStatus({
+      type: 'info',
+      message: 'Requesting marketplace approval...'
+    });
+
+    const approvalResult = await setApprovalForAll(IrecNFTAddress, true);
+    
+    if (!approvalResult.success) {
       showStatus({
         type: 'error',
-        message: 'Token ID and Price are required'
+        message: approvalResult.error || 'Failed to approve marketplace'
       });
       return;
     }
 
-    setLoading(prev => ({ ...prev, listing: true }));
-
-    try {
-      const tokenId = BigInt(newListing.tokenId);
-      const price = parseEther(newListing.price);
-      const totalEnergy = BigInt(newListing.totalEnergy || '0');
-      const energyPerToken = BigInt(newListing.energyPerToken || '0');
-
-      const result = await listNFT(
-        tokenId,
-        price,
-        totalEnergy,
-        energyPerToken,
-        newListing.tokenName,
-        newListing.tokenSymbol
-      );
-
-      if (result.success) {
-        const listing: Listing = {
-          id: Date.now(),
-          tokenId,
-          seller: userAddress,
-          price,
-          active: true,
-          totalEnergy,
-          energyPerToken,
-          tokenName: newListing.tokenName,
-          tokenSymbol: newListing.tokenSymbol,
-          remainingTokens: totalEnergy > 0n && energyPerToken > 0n ? 
-            totalEnergy / energyPerToken : 0n,
-          listingId: result.listingId ? BigInt(result.listingId) : undefined
-        };
-
-        setListings([...listings, listing]);
-        setNewListing({
-          tokenId: '',
-          price: '',
-          totalEnergy: '',
-          energyPerToken: '',
-          tokenName: '',
-          tokenSymbol: ''
-        });
-        
-        showStatus({
-          type: 'success',
-          message: 'NFT listed successfully!',
-          hash: result.hash
-        });
-        
-        setSelectedTab('marketplace');
-      } else {
-        showStatus({
-          type: 'error',
-          message: result.error || 'Failed to list NFT'
-        });
-      }
-    } catch {
+    
+    if (!approvalResult.receipt) {
       showStatus({
         type: 'error',
-        message: 'An unexpected error occurred'
+        message: 'Approval transaction not confirmed. Please try again.'
       });
+      return;
     }
 
-    setLoading(prev => ({ ...prev, listing: false }));
-  };
+    showStatus({
+      type: 'success',
+      message: 'Marketplace approved and confirmed! Creating listing...'
+    });
+
+    
+    const result = await listNFT(
+      tokenId,
+      price,
+      totalEnergy,
+      energyPerToken,
+      newListing.tokenName,
+      newListing.tokenSymbol
+    ) as ListNFTResult;
+
+    if (result.success) {
+      const listing: Listing = {
+        id: Date.now(),
+        tokenId,
+        seller: userAddress,
+        price,
+        active: true,
+        totalEnergy,
+        energyPerToken,
+        tokenName: newListing.tokenName,
+        tokenSymbol: newListing.tokenSymbol,
+        remainingTokens: totalEnergy > 0n && energyPerToken > 0n ? 
+          totalEnergy / energyPerToken : 0n,
+        listingId: result.listingId ? BigInt(result.listingId.toString()) : undefined
+      };
+      
+      setListings([...listings, listing]);
+      setNewListing({
+        tokenId: '',
+        price: '',
+        totalEnergy: '',
+        energyPerToken: '',
+        tokenName: '',
+        tokenSymbol: ''
+      });
+      
+      showStatus({
+        type: 'success',
+        message: result.listingId 
+          ? `NFT listed successfully! Listing ID: ${result.listingId}`
+          : 'NFT listed successfully on the marketplace!',
+        hash: result.hash
+      });
+      
+      setSelectedTab('marketplace');
+    } else {
+      showStatus({
+        type: 'error',
+        message: result.error || 'Failed to create marketplace listing'
+      });
+    }
+  } catch (error) {
+    console.error('Listing error:', error);
+    showStatus({
+      type: 'error',
+      message: 'An unexpected error occurred'
+    });
+  }
+  
+  setLoading(prev => ({ ...prev, listing: false }));
+};
 
   const handlePurchase = async () => {
     if (!selectedListing || selectedListing.listingId === undefined || !requiredPayment) {
@@ -223,19 +343,15 @@ const Marketplace: React.FC = () => {
       });
       return;
     }
-
     setLoading(prev => ({ ...prev, purchasing: true }));
-
     try {
       const amount = purchaseMode === 'full' ? 1n : fractionalAmount;
-      
       const result = await purchaseNFT(
         selectedListing.listingId,
         purchaseMode === 'fractional',
         amount,
         requiredPayment
       );
-
       if (result.success) {
         const newRequest: PurchaseRequest = {
           id: Date.now(),
@@ -248,7 +364,6 @@ const Marketplace: React.FC = () => {
           transactionHash: result.hash
         };
 
-        // Update listing
         const updatedListings = listings.map(listing => {
           if (listing.id === selectedListing.id) {
             if (purchaseMode === 'full') {
@@ -267,13 +382,13 @@ const Marketplace: React.FC = () => {
 
         setListings(updatedListings);
         setPurchaseRequests([...purchaseRequests, newRequest]);
-        
+
         showStatus({
           type: 'success',
           message: `Successfully purchased ${purchaseMode === 'full' ? 'NFT' : 'tokens'}!`,
           hash: result.hash
         });
-        
+
         setSelectedListing(null);
         setPurchaseMode('full');
         setFractionalAmount(1n);
@@ -290,107 +405,44 @@ const Marketplace: React.FC = () => {
         message: 'An unexpected error occurred during purchase'
       });
     }
-
     setLoading(prev => ({ ...prev, purchasing: false }));
   };
 
-  const handleFractionalize = async () => {
-    if (!fractionalizationForm.tokenId || !fractionalizationForm.totalEnergy || !fractionalizationForm.energyPerToken) {
-      showStatus({
-        type: 'error',
-        message: 'Token ID, Total Energy, and Energy per Token are required'
-      });
-      return;
-    }
-
-    setLoading(prev => ({ ...prev, fractionalizing: true }));
-
-    try {
-      const tokenId = BigInt(fractionalizationForm.tokenId);
-      const totalEnergy = BigInt(fractionalizationForm.totalEnergy);
-      const energyPerToken = BigInt(fractionalizationForm.energyPerToken);
-
-      // Validate parameters first
-      const validation = await validateFractionalizationParams(
-        tokenId,
-        totalEnergy,
-        energyPerToken,
-        userAddress as `0x${string}`
-      );
-
-      if (!validation.success) {
-        showStatus({
-          type: 'error',
-          message: validation.error || 'Validation failed'
-        });
-        setLoading(prev => ({ ...prev, fractionalizing: false }));
-        return;
-      }
-
-      const result = await fractionalize(
-        tokenId,
-        totalEnergy,
-        energyPerToken,
-        fractionalizationForm.tokenName,
-        fractionalizationForm.tokenSymbol
-      );
-
-      if (result.success) {
-        showStatus({
-          type: 'success',
-          message: `NFT fractionalized successfully! Created ${validation.tokenCount} tokens.`,
-          hash: result.hash
-        });
-        
-        setFractionalizationForm({
-          tokenId: '',
-          totalEnergy: '',
-          energyPerToken: '',
-          tokenName: '',
-          tokenSymbol: ''
-        });
-      } else {
-        showStatus({
-          type: 'error',
-          message: result.error || 'Failed to fractionalize NFT'
-        });
-      }
-    } catch {
-      showStatus({
-        type: 'error',
-        message: 'An unexpected error occurred during fractionalization'
-      });
-    }
-
-    setLoading(prev => ({ ...prev, fractionalizing: false }));
-  };
-
   const handleCancelListing = (listingId: number) => {
-    // Note: You would need to implement a cancelListing function in your blockchain hooks
-    // For now, we'll just update the local state
     const updatedListings = listings.map(listing => 
       listing.id === listingId ? { ...listing, active: false } : listing
     );
     setListings(updatedListings);
     setShowCancelConfirm(null);
-    
     showStatus({
       type: 'info',
       message: 'Listing cancelled (Note: Implement blockchain cancellation)'
     });
   };
 
+  const calculateFractionalPrice = (selectedListing: Listing, fractionalAmount: bigint): number => {
+    if (!selectedListing.totalEnergy || !selectedListing.energyPerToken || selectedListing.energyPerToken === 0n) {
+      return Number(selectedListing.price) / 1e18;
+    }
+    const totalTokens = selectedListing.totalEnergy / selectedListing.energyPerToken;
+    if (totalTokens === 0n) return 0;
+    const pricePerToken = selectedListing.price / totalTokens;
+    const fractionalPrice = pricePerToken * fractionalAmount;
+    return Number(fractionalPrice) / 1e18;
+  };
+
+  const calculatePlatformFee = (selectedPrice: number): number => {
+    return (selectedPrice * platformFee) / 100;
+  };
+
   const renderTransactionStatus = () => {
     if (!transactionStatus) return null;
-
     const bgColor = transactionStatus.type === 'success' ? 'bg-green-100 border-green-200' :
                    transactionStatus.type === 'error' ? 'bg-red-100 border-red-200' :
                    'bg-blue-100 border-blue-200';
-    
     const textColor = transactionStatus.type === 'success' ? 'text-green-800' :
                      transactionStatus.type === 'error' ? 'text-red-800' :
                      'text-blue-800';
-
     return (
       <div className={`fixed top-4 right-4 p-4 rounded-lg border ${bgColor} ${textColor} max-w-md z-50 shadow-lg`}>
         <div className="flex justify-between items-start">
@@ -424,7 +476,6 @@ const Marketplace: React.FC = () => {
           Platform Fee: {platformFee}%
         </div>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {listings.filter(listing => listing.active).map(listing => (
           <div key={listing.id} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
@@ -438,7 +489,6 @@ const Marketplace: React.FC = () => {
                   <div className="text-2xl font-bold text-green-600">{formatEther(listing.price)} ETH</div>
                 </div>
               </div>
-
               {canBeFractionalized(listing) && (
                 <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center gap-2 mb-2">
@@ -453,7 +503,6 @@ const Marketplace: React.FC = () => {
                   </div>
                 </div>
               )}
-
               <div className="space-y-2">
                 <button
                   onClick={() => setSelectedListing(listing)}
@@ -462,7 +511,6 @@ const Marketplace: React.FC = () => {
                   <Eye className="w-4 h-4" />
                   View Details
                 </button>
-
                 {listing.seller === userAddress && (
                   <button
                     onClick={() => setShowCancelConfirm(listing.id)}
@@ -477,7 +525,6 @@ const Marketplace: React.FC = () => {
           </div>
         ))}
       </div>
-
       {listings.filter(listing => listing.active).length === 0 && (
         <div className="text-center py-12">
           <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -493,7 +540,6 @@ const Marketplace: React.FC = () => {
         <Plus className="w-6 h-6" />
         Create New Listing
       </h2>
-
       <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -509,7 +555,6 @@ const Marketplace: React.FC = () => {
               disabled={loading.listing}
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Price (ETH) *
@@ -525,13 +570,11 @@ const Marketplace: React.FC = () => {
             />
           </div>
         </div>
-
         <div className="border-t pt-4">
           <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center gap-2">
             <Zap className="w-5 h-5" />
             Fractionalization Settings (Optional)
           </h3>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -546,7 +589,6 @@ const Marketplace: React.FC = () => {
                 disabled={loading.listing}
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Energy per Token (kW)
@@ -560,7 +602,6 @@ const Marketplace: React.FC = () => {
                 disabled={loading.listing}
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Token Name
@@ -574,7 +615,6 @@ const Marketplace: React.FC = () => {
                 disabled={loading.listing}
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Token Symbol
@@ -590,100 +630,6 @@ const Marketplace: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* Fractionalization Section */}
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5" />
-            Standalone Fractionalization
-          </h3>
-          <p className="text-sm text-gray-600 mb-4">
-            Fractionalize an existing NFT without listing it for sale
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                NFT Token ID *
-              </label>
-              <input
-                type="number"
-                value={fractionalizationForm.tokenId}
-                onChange={(e) => setFractionalizationForm({...fractionalizationForm, tokenId: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter token ID"
-                disabled={loading.fractionalizing}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Total Energy (kW) *
-              </label>
-              <input
-                type="number"
-                value={fractionalizationForm.totalEnergy}
-                onChange={(e) => setFractionalizationForm({...fractionalizationForm, totalEnergy: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="1000"
-                disabled={loading.fractionalizing}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Energy per Token (kW) *
-              </label>
-              <input
-                type="number"
-                value={fractionalizationForm.energyPerToken}
-                onChange={(e) => setFractionalizationForm({...fractionalizationForm, energyPerToken: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="50"
-                disabled={loading.fractionalizing}
-              />
-              <p className="text-xs text-gray-500 mt-1">Minimum: 50kW</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Token Name *
-              </label>
-              <input
-                type="text"
-                value={fractionalizationForm.tokenName}
-                onChange={(e) => setFractionalizationForm({...fractionalizationForm, tokenName: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Solar Energy Credits"
-                disabled={loading.fractionalizing}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Token Symbol *
-              </label>
-              <input
-                type="text"
-                value={fractionalizationForm.tokenSymbol}
-                onChange={(e) => setFractionalizationForm({...fractionalizationForm, tokenSymbol: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="SEC"
-                disabled={loading.fractionalizing}
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={handleFractionalize}
-            disabled={loading.fractionalizing}
-            className="mt-4 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {loading.fractionalizing && <Loader2 className="w-4 h-4 animate-spin" />}
-            {loading.fractionalizing ? 'Fractionalizing...' : 'Fractionalize NFT'}
-          </button>
-        </div>
-
         <div className="flex gap-4">
           <button
             onClick={handleCreateListing}
@@ -708,7 +654,6 @@ const Marketplace: React.FC = () => {
   const renderManageListings = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">My Listings & Purchases</h2>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* My Listings */}
         <div>
@@ -738,13 +683,11 @@ const Marketplace: React.FC = () => {
                     )}
                   </div>
                 </div>
-                
                 {canBeFractionalized(listing) && (
                   <div className="text-xs text-gray-600 mb-2">
                     Remaining tokens: {listing.remainingTokens?.toString() || '0'}
                   </div>
                 )}
-
                 {listing.active && (
                   <button
                     onClick={() => setShowCancelConfirm(listing.id)}
@@ -757,7 +700,6 @@ const Marketplace: React.FC = () => {
             ))}
           </div>
         </div>
-
         {/* Purchase History */}
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Purchase History</h3>
@@ -770,7 +712,7 @@ const Marketplace: React.FC = () => {
                       {request.isFractional ? 'Fractional' : 'Full'} Purchase
                     </h4>
                     <p className="text-sm text-gray-600">
-                      Listing #{request.listingId} • {request.purchaseAmount} {request.isFractional ? 'tokens' : 'NFT'}
+                      Listing #{request.listingId} â€¢ {request.purchaseAmount} {request.isFractional ? 'tokens' : 'NFT'}
                     </p>
                   </div>
                   <div className="text-right">
@@ -791,13 +733,11 @@ const Marketplace: React.FC = () => {
 
   const renderPurchaseModal = () => {
     if (!selectedListing) return null;
-
     const fullPrice = Number(formatEther(selectedListing.price));
     const fractionalPrice = calculateFractionalPrice(selectedListing, fractionalAmount);
     const selectedPrice = purchaseMode === 'full' ? fullPrice : fractionalPrice;
     const platformFeeAmount = calculatePlatformFee(selectedPrice);
     const totalPrice = selectedPrice + platformFeeAmount;
-
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
@@ -810,7 +750,6 @@ const Marketplace: React.FC = () => {
               <X className="w-6 h-6" />
             </button>
           </div>
-
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="text-sm text-gray-600 mb-1">Seller</div>
@@ -818,7 +757,6 @@ const Marketplace: React.FC = () => {
               <div className="text-sm text-gray-600 mt-2">Listed Price</div>
               <div className="text-xl font-bold text-green-600">{selectedListing.price} ETH</div>
             </div>
-
             {canBeFractionalized(selectedListing) && (
               <div className="space-y-3">
                 <div className="flex space-x-2">
@@ -843,7 +781,6 @@ const Marketplace: React.FC = () => {
                     Buy Tokens
                   </button>
                 </div>
-
                 {purchaseMode === 'fractional' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -864,7 +801,6 @@ const Marketplace: React.FC = () => {
                 )}
               </div>
             )}
-
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Item Price:</span>
@@ -879,7 +815,6 @@ const Marketplace: React.FC = () => {
                 <span>{totalPrice.toFixed(4)} ETH</span>
               </div>
             </div>
-
             <div className="flex gap-3 pt-4">
               <button
                 onClick={handlePurchase}
@@ -901,13 +836,10 @@ const Marketplace: React.FC = () => {
     );
   };
 
-  // Cancel Confirmation Modal
   const renderCancelConfirmModal = () => {
     if (!showCancelConfirm) return null;
-    
     const listing = listings.find(l => l.id === showCancelConfirm);
     if (!listing) return null;
-
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
@@ -917,7 +849,6 @@ const Marketplace: React.FC = () => {
             </div>
             <h3 className="text-xl font-bold text-gray-800">Cancel Listing</h3>
           </div>
-
           <div className="mb-6">
             <p className="text-gray-600 mb-3">
               Are you sure you want to cancel this listing? This action cannot be undone.
@@ -932,7 +863,6 @@ const Marketplace: React.FC = () => {
               )}
             </div>
           </div>
-
           <div className="flex gap-3">
             <button
               onClick={() => handleCancelListing(showCancelConfirm)}
@@ -957,11 +887,28 @@ const Marketplace: React.FC = () => {
       {renderTransactionStatus()}
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">IREC NFT Marketplace</h1>
-          <p className="text-gray-600">Trade renewable energy certificates as NFTs with fractional ownership</p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-800 mb-2">IREC NFT Marketplace</h1>
+            <p className="text-gray-600">Trade renewable energy certificates as NFTs with fractional ownership</p>
+          </div>
+          {!isWalletConnected && (
+            <button
+              onClick={connectWallet}
+              disabled={loading.connectingWallet}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium shadow hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {loading.connectingWallet && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading.connectingWallet ? 'Connecting...' : 'Connect Wallet'}
+            </button>
+          )}
+          {isWalletConnected && (
+            <div className="flex items-center gap-2 bg-green-100 text-green-800 px-4 py-2 rounded-lg font-medium">
+              <span>Wallet:</span>
+              <span className="font-mono">{formatAddress(userAddress)}</span>
+            </div>
+          )}
         </div>
-
         {/* Navigation */}
         <div className="flex space-x-1 mb-8 bg-white rounded-lg p-1 shadow-sm">
           <button
@@ -995,12 +942,10 @@ const Marketplace: React.FC = () => {
             My Activity
           </button>
         </div>
-
         {/* Content */}
         {selectedTab === 'marketplace' && renderMarketplace()}
         {selectedTab === 'create' && renderCreateListing()}
         {selectedTab === 'manage' && renderManageListings()}
-
         {/* Modals */}
         {renderPurchaseModal()}
         {renderCancelConfirmModal()}
@@ -1009,25 +954,4 @@ const Marketplace: React.FC = () => {
   );
 };
 
-function calculateFractionalPrice(selectedListing: Listing, fractionalAmount: bigint) {
-  // If the listing is not fractionalizable, return the full price
-  if (!selectedListing.totalEnergy || !selectedListing.energyPerToken || selectedListing.energyPerToken === 0n) {
-    return Number(selectedListing.price) / 1e18;
-  }
-  // Calculate price per token
-  const totalTokens = selectedListing.totalEnergy / selectedListing.energyPerToken;
-  if (totalTokens === 0n) return 0;
-  const pricePerToken = selectedListing.price / totalTokens;
-  // Multiply by the number of tokens requested
-  const fractionalPrice = pricePerToken * fractionalAmount;
-  return Number(fractionalPrice) / 1e18;
-}
-
 export default Marketplace;
-function calculatePlatformFee(selectedPrice: number): number {
-  // Platform fee is a percentage of the selected price (ETH)
-  // The platformFee variable is 2.5 (percent) in the component scope
-  const feePercent = 2.5;
-  return (selectedPrice * feePercent) / 100;
-}
-
