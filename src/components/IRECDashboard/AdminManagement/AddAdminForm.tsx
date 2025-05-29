@@ -121,8 +121,9 @@ export const AddAdminForm: React.FC<AddAdminFormProps> = ({
     <div className={`bg-gray-50 p-4 rounded-lg border ${className}`}>
       <h4 className="text-sm font-medium text-gray-900 mb-3">Add New Admin</h4>
       
+    
       {/* Debug Info - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.MODE === 'development' && (
         <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
           <p><strong>Debug Info:</strong></p>
           <p>Can Grant Admin: {userPermissions.canGrantAdmin.toString()}</p>
@@ -131,7 +132,6 @@ export const AddAdminForm: React.FC<AddAdminFormProps> = ({
           <p>Loading Keys: {Array.from(loading.grantingRole).join(', ')}</p>
         </div>
       )}
-      
       <div className="space-y-3">
         {/* Address Input */}
         <div>
