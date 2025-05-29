@@ -7,6 +7,26 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import Marketplace from '../components/Marketplace';
 
+// Type definitions for ConnectButton render props
+interface ConnectButtonRenderProps {
+  account?: {
+    address: string;
+    displayName: string;
+    displayBalance?: string;
+  };
+  chain?: {
+    id: number;
+    name?: string;
+    iconUrl?: string;
+    iconBackground?: string;
+    hasIcon: boolean;
+    unsupported?: boolean;
+  };
+  openAccountModal: () => void;
+  openChainModal: () => void;
+  openConnectModal: () => void;
+  mounted: boolean;
+}
 
 const Main: React.FC = () => {
   const [currentView, setCurrentView] = useState<'hero' | 'dashboard' | 'marketplace' | 'admin'>('hero');
@@ -82,7 +102,7 @@ const Main: React.FC = () => {
               {/* Connect Wallet Button */}
               <div className="ml-4">
                 <ConnectButton.Custom>
-                  {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
+                  {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }: ConnectButtonRenderProps) => {
                     const ready = mounted;
                     const connected = ready && account && chain;
 
@@ -109,7 +129,7 @@ const Main: React.FC = () => {
                             );
                           }
 
-                          if (chain.unsupported) {
+                          if (chain?.unsupported) {
                             return (
                               <button
                                 onClick={openChainModal}
@@ -126,7 +146,7 @@ const Main: React.FC = () => {
                                 onClick={openChainModal}
                                 className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors flex items-center gap-2"
                               >
-                                {chain.hasIcon && (
+                                {chain?.hasIcon && (
                                   <div
                                     style={{
                                       background: chain.iconBackground,
@@ -139,22 +159,22 @@ const Main: React.FC = () => {
                                   >
                                     {chain.iconUrl && (
                                       <img
-                                        alt={chain.name ?? 'Chain icon'}
+                                        alt={chain.name}
                                         src={chain.iconUrl}
                                         style={{ width: 12, height: 12 }}
                                       />
                                     )}
                                   </div>
                                 )}
-                                {chain.name}
+                                {chain?.name}
                               </button>
 
                               <button
                                 onClick={openAccountModal}
                                 className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 transition-colors"
                               >
-                                {account.displayName}
-                                {account.displayBalance
+                                {account?.displayName}
+                                {account?.displayBalance
                                   ? ` (${account.displayBalance})`
                                   : ''}
                               </button>
