@@ -25,50 +25,79 @@ const IRECDashboard = () => {
     tokenSymbol: string;
   }
 
-  const handleFractionalizeSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      // Convert form values to appropriate types
-      const tokenId = BigInt(fractionalizeForm.tokenId);
-      const totalEnergy = BigInt(fractionalizeForm.totalEnergy);
-      const energyPerToken = BigInt(fractionalizeForm.energyPerToken);
-
-      // Call the imported fractionalize function
-      const result = await fractionalize(
-        tokenId,
-        totalEnergy,
-        energyPerToken,
-        fractionalizeForm.tokenName,
-        fractionalizeForm.tokenSymbol
-      );
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fractionalize NFT');
-      }
-
-      // Reset form and close modal
-      setFractionalizeForm({
-        tokenId: '',
-        totalEnergy: '',
-        energyPerToken: '',
-        tokenName: '',
-        tokenSymbol: ''
-      });
-      setShowFractionalizeModal(false);
-      alert('NFT fractionalized  successfully!');
-
-    } catch (error: unknown) {
-      console.error('Error fractionalizing NFT:', error);
-      if (error instanceof Error) {
-        alert('Error: ' + error.message);
-      } else {
-        alert('An unknown error occurred.');
-      }
-    } finally {
-      setIsSubmitting(false);
+ const handleFractionalizeSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  e.preventDefault();
+  setIsSubmitting(true);
+  
+  try {
+    // Convert form values to appropriate types
+    const tokenId = BigInt(fractionalizeForm.tokenId);
+    
+    // Parse as regular numbers first, then convert to BigInt
+    const totalEnergyKW = parseFloat(fractionalizeForm.totalEnergy);
+    const energyPerTokenKW = parseFloat(fractionalizeForm.energyPerToken);
+    
+    // Validation checks
+    if (totalEnergyKW <= 0 || energyPerTokenKW <= 0) {
+      throw new Error('Energy values must be greater than zero');
     }
-  };
+    
+    if (energyPerTokenKW < 50) {
+      throw new Error('Minimum energy per token is 50kW');
+    }
+    
+    if (totalEnergyKW % energyPerTokenKW !== 0) {
+      throw new Error('Total energy must be evenly divisible by energy per token');
+    }
+    
+    // Convert to BigInt (assuming the contract expects raw kW values)
+    // If your contract expects scaled values, multiply by appropriate factor
+    const totalEnergy = BigInt(Math.floor(totalEnergyKW));
+    const energyPerToken = BigInt(Math.floor(energyPerTokenKW));
+    
+    console.log('Fractionalization parameters:', {
+      tokenId: tokenId.toString(),
+      totalEnergy: totalEnergy.toString(),
+      energyPerToken: energyPerToken.toString(),
+      expectedTokens: (totalEnergyKW / energyPerTokenKW).toString()
+    });
+
+    // Call the imported fractionalize function
+    const result = await fractionalize(
+      tokenId,
+      totalEnergy,
+      energyPerToken,
+      fractionalizeForm.tokenName,
+      fractionalizeForm.tokenSymbol
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fractionalize NFT');
+    }
+
+    // Reset form and close modal
+    setFractionalizeForm({
+      tokenId: '',
+      totalEnergy: '',
+      energyPerToken: '',
+      tokenName: '',
+      tokenSymbol: ''
+    });
+    setShowFractionalizeModal(false);
+    
+    alert(`NFT fractionalized successfully! Expected ${Math.floor(totalEnergyKW / energyPerTokenKW)} tokens created.`);
+
+  } catch (error: unknown) {
+    console.error('Error fractionalizing NFT:', error);
+    if (error instanceof Error) {
+      alert('Error: ' + error.message);
+    } else {
+      alert('An unknown error occurred.');
+    }
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   type FractionalizeFormField = keyof FractionalizeFormFields;
 
