@@ -56,7 +56,7 @@ const IRECDashboard = () => {
         tokenSymbol: ''
       });
       setShowFractionalizeModal(false);
-      alert('NFT fractionalization initiated successfully!');
+      alert('NFT fractionalized  successfully!');
 
     } catch (error: unknown) {
       console.error('Error fractionalizing NFT:', error);
