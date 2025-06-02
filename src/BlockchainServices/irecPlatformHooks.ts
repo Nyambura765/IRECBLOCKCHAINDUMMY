@@ -13,12 +13,14 @@ import {
 
 //set up public client
 function getPublicClient() {
-        return createPublicClient({
-      chain: sepolia,
-      transport: http(`${import.meta.env.VITE_SEPOLIA_RPC_URL}`)
-    });
+  const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL || 
+                 'https://eth-sepolia.g.alchemy.com/v2/Sjp-_L06hJaN1mFgjtmEZT-InFB0-rgF';
+  
+  return createPublicClient({
+    chain: sepolia,
+    transport: http(rpcUrl)
+  });
 }
-
 // Define return type for wallet client
 interface WalletClientResult {
     walletClient: WalletClient;
