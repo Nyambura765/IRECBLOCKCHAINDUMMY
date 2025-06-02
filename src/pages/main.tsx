@@ -55,7 +55,7 @@ const Main: React.FC = () => {
                 onClick={handleBackToHome}
                 className="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors"
               >
-                CarbonToken
+                NEST
               </button>
             </div>
             <div className="flex items-center space-x-4">
