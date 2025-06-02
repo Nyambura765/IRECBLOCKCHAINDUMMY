@@ -78,6 +78,12 @@ const IRECDashboard = () => {
       [field]: value
     }));
   };
+  
+console.log('Environment check:', {
+  rpcUrl: import.meta.env.VITE_SEPOLIA_RPC_URL,
+  allEnvs: import.meta.env,
+  mode: import.meta.env.MODE
+});
 
   // Mock data
   const mockUserData = {
