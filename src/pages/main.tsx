@@ -53,7 +53,7 @@ const Main: React.FC = () => {
             <div className="flex items-center">
               <button
                 onClick={handleBackToHome}
-                className="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors"
+                className="text-xl font-bold text-green-600 hover:text-green-600 transition-colors"
               >
                 NEST
               </button>
