@@ -199,7 +199,7 @@ const IRECAdminDashboard: React.FC = () => {
       
       
       setIrecs([]);
-      showToast('IREC data loading requires alternative implementation without getAllTokenIds hook', 'info');
+      showToast('IREC data loading', 'info');
       
       
       

@@ -1,4 +1,4 @@
-export const IrecNFTAddress = "0xa884dec4BEE81f84E4881ACF05A596D09a6d2D6d"; 
+export const IrecNFTAddress = "0x757Bc598387c35a293334123294d290eBDD92712"; 
 export const IrecNFTABI =  [
     {
       "inputs": [
@@ -516,6 +516,25 @@ export const IrecNFTABI =  [
       "inputs": [
         {
           "indexed": true,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "burner",
+          "type": "address"
+        }
+      ],
+      "name": "TokenBurned",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "address",
           "name": "from",
           "type": "address"
@@ -636,6 +655,19 @@ export const IrecNFTABI =  [
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "burn",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -1287,7 +1319,7 @@ export const IrecNFTABI =  [
     }
   ]
   //fractionalization contract address and ABI
-export const FractionalizationAddress = "0xc970a87a58c5f0a79263bE6e9D1a48487f0B0DC6";
+export const FractionalizationAddress = "0xA2f8159a5b317Cc5aa599C0c583Fb873777E1206";
 export const fractionalizationABI = [
     {
       "inputs": [
@@ -1744,7 +1776,7 @@ export const fractionalizationABI = [
     }
   ]
   //Marketplace contract address and ABI
-export const MarketplaceAddress = "0xF606e5e9602F11B05A7741410221eCb86C4E1243";
+export const MarketplaceAddress = "0x4753DeA401d3B623B8E1C2c47aFF0f78Bc11c3c7";
 export const marketplaceABI =  [
     {
       "inputs": [
@@ -1846,9 +1878,40 @@ export const marketplaceABI =  [
           "internalType": "uint256",
           "name": "listingId",
           "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "tokenAddress",
+          "type": "address"
         }
       ],
-      "name": "ListingCancelled",
+      "name": "FractionalListingCancelled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newPricePerToken",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newTokensAvailable",
+          "type": "uint256"
+        }
+      ],
+      "name": "FractionalListingUpdated",
       "type": "event"
     },
     {
@@ -1862,9 +1925,46 @@ export const marketplaceABI =  [
         },
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "tokenAddress",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        },
+        {
+          "indexed": false,
           "internalType": "uint256",
-          "name": "tokenId",
+          "name": "pricePerToken",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokensAvailable",
+          "type": "uint256"
+        }
+      ],
+      "name": "FractionalTokensListed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "tokenAddress",
+          "type": "address"
         },
         {
           "indexed": false,
@@ -1886,12 +1986,12 @@ export const marketplaceABI =  [
         },
         {
           "indexed": false,
-          "internalType": "address",
-          "name": "fractionalToken",
-          "type": "address"
+          "internalType": "uint256",
+          "name": "totalPrice",
+          "type": "uint256"
         }
       ],
-      "name": "NFTFractionallySold",
+      "name": "FractionalTokensSold",
       "type": "event"
     },
     {
@@ -1908,58 +2008,9 @@ export const marketplaceABI =  [
           "internalType": "uint256",
           "name": "tokenId",
           "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "seller",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "price",
-          "type": "uint256"
         }
       ],
-      "name": "NFTListed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "listingId",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "tokenId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "seller",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "buyer",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "price",
-          "type": "uint256"
-        }
-      ],
-      "name": "NFTSold",
+      "name": "NFTListingCancelled",
       "type": "event"
     },
     {
@@ -1992,19 +2043,6 @@ export const marketplaceABI =  [
         }
       ],
       "name": "PlatformFeeUpdated",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
-        }
-      ],
-      "name": "PurchaseCancelled",
       "type": "event"
     },
     {
@@ -2083,6 +2121,74 @@ export const marketplaceABI =  [
       "type": "event"
     },
     {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "price",
+          "type": "uint256"
+        }
+      ],
+      "name": "WholeNFTListed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "price",
+          "type": "uint256"
+        }
+      ],
+      "name": "WholeNFTSold",
+      "type": "event"
+    },
+    {
       "inputs": [],
       "name": "ADMIN_ROLE",
       "outputs": [
@@ -2135,15 +2241,9 @@ export const marketplaceABI =  [
           "type": "uint256"
         }
       ],
-      "name": "canBeFractionalized",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
+      "name": "cancelFractionalListing",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -2154,7 +2254,7 @@ export const marketplaceABI =  [
           "type": "uint256"
         }
       ],
-      "name": "cancelListing",
+      "name": "cancelNFTListing",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -2167,6 +2267,50 @@ export const marketplaceABI =  [
           "internalType": "address",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "fractionalListings",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "pricePerToken",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokensAvailable",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "active",
+          "type": "bool"
+        },
+        {
+          "internalType": "address",
+          "name": "fractionalTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minimumPurchase",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -2198,7 +2342,51 @@ export const marketplaceABI =  [
           "type": "uint256"
         }
       ],
-      "name": "getActiveListings",
+      "name": "getActiveFractionalListings",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "listingIds",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "address[]",
+          "name": "tokenAddresses",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "pricesPerToken",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "tokensAvailable",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "address[]",
+          "name": "sellers",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "startId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "count",
+          "type": "uint256"
+        }
+      ],
+      "name": "getActiveNFTListings",
       "outputs": [
         {
           "internalType": "uint256[]",
@@ -2232,7 +2420,51 @@ export const marketplaceABI =  [
           "type": "uint256"
         }
       ],
-      "name": "getListingDetails",
+      "name": "getFractionalListingDetails",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "pricePerToken",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokensAvailable",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "active",
+          "type": "bool"
+        },
+        {
+          "internalType": "address",
+          "name": "fractionalTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minimumPurchase",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getNFTListingDetails",
       "outputs": [
         {
           "internalType": "address",
@@ -2261,40 +2493,6 @@ export const marketplaceABI =  [
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "listingId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getListingFractionalizationDetails",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "totalEnergy",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "energyPerToken",
-          "type": "uint256"
-        },
-        {
-          "internalType": "string",
-          "name": "tokenName",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "tokenSymbol",
-          "type": "string"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "bytes32",
           "name": "role",
           "type": "bytes32"
@@ -2306,6 +2504,44 @@ export const marketplaceABI =  [
           "internalType": "bytes32",
           "name": "",
           "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        }
+      ],
+      "name": "getSellerFractionalListings",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        }
+      ],
+      "name": "getSellerNFTListings",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
         }
       ],
       "stateMutability": "view",
@@ -2369,6 +2605,40 @@ export const marketplaceABI =  [
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "fractionalTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "pricePerToken",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokensToList",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minimumPurchase",
+          "type": "uint256"
+        }
+      ],
+      "name": "listFractionalTokens",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint256",
           "name": "tokenId",
           "type": "uint256"
@@ -2377,29 +2647,9 @@ export const marketplaceABI =  [
           "internalType": "uint256",
           "name": "price",
           "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalEnergy",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "energyPerToken",
-          "type": "uint256"
-        },
-        {
-          "internalType": "string",
-          "name": "tokenName",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "tokenSymbol",
-          "type": "string"
         }
       ],
-      "name": "listNFT",
+      "name": "listWholeNFT",
       "outputs": [
         {
           "internalType": "uint256",
@@ -2418,26 +2668,7 @@ export const marketplaceABI =  [
           "type": "uint256"
         }
       ],
-      "name": "listingIdToTokenId",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "listings",
+      "name": "nftListings",
       "outputs": [
         {
           "internalType": "address",
@@ -2456,23 +2687,8 @@ export const marketplaceABI =  [
         },
         {
           "internalType": "uint256",
-          "name": "totalEnergy",
+          "name": "tokenId",
           "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "energyPerToken",
-          "type": "uint256"
-        },
-        {
-          "internalType": "string",
-          "name": "tokenName",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "tokenSymbol",
-          "type": "string"
         }
       ],
       "stateMutability": "view",
@@ -2512,17 +2728,12 @@ export const marketplaceABI =  [
           "type": "uint256"
         },
         {
-          "internalType": "bool",
-          "name": "isFractional",
-          "type": "bool"
-        },
-        {
           "internalType": "uint256",
-          "name": "amount",
+          "name": "tokenAmount",
           "type": "uint256"
         }
       ],
-      "name": "purchaseNFT",
+      "name": "purchaseFractionalTokens",
       "outputs": [],
       "stateMutability": "payable",
       "type": "function"
@@ -2531,44 +2742,13 @@ export const marketplaceABI =  [
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "purchaseRequests",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "buyer",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
           "name": "listingId",
           "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "purchaseAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bool",
-          "name": "isFractional",
-          "type": "bool"
-        },
-        {
-          "internalType": "bool",
-          "name": "isCompleted",
-          "type": "bool"
-        },
-        {
-          "internalType": "uint256",
-          "name": "paidAmount",
-          "type": "uint256"
         }
       ],
-      "stateMutability": "view",
+      "name": "purchaseWholeNFT",
+      "outputs": [],
+      "stateMutability": "payable",
       "type": "function"
     },
     {
@@ -2637,6 +2817,54 @@ export const marketplaceABI =  [
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "sellerFractionalListings",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "sellerNFTListings",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "bytes4",
           "name": "interfaceId",
           "type": "bytes4"
@@ -2683,6 +2911,29 @@ export const marketplaceABI =  [
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "newPricePerToken",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "additionalTokens",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateFractionalListing",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "_platformFeePercentage",
           "type": "uint256"
         }
@@ -2698,7 +2949,7 @@ export const marketplaceABI =  [
     }
   ]
   //FractionalToken contract address and ABI
-export const FractionalTokenAddress = "0xE673D198c30da6C694C1c83689D6DDCb11c295EB";
+export const FractionalTokenAddress = "0xb23E46FaA481EFf250C8eba1cd79D351cf6eec40";
 export const fractionalTokenABI = [
     {
       "inputs": [

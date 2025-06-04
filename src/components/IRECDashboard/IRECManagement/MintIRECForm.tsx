@@ -95,7 +95,7 @@ export const MintIrecForm: React.FC<MintIrecFormProps> = ({
         />
         <input
           type="number"
-          placeholder="Energy Amount (MWh)"
+          placeholder="Energy Amount (kWh)"
           value={formData.energyAmount}
           onChange={(e) => setFormData({...formData, energyAmount: e.target.value})}
           className="px-3 py-2 border border-gray-300 rounded-md text-sm"

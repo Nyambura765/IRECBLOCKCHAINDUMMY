@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { User, ShoppingCart, Wallet, TrendingUp, Battery, Zap, DollarSign, Package, Eye, ShoppingBag, Plus, Edit3, Trash2, Search, Filter, Award, X } from 'lucide-react';
-import { fractionalize } from '../../BlockchainServices/irecPlatformHooks';
+import { User, ShoppingCart, Wallet, TrendingUp, Battery, Zap, DollarSign, Package, Eye, ShoppingBag, Plus, Edit3, Trash2, Search, Filter, Award, X, Copy, ExternalLink } from 'lucide-react';
+import { fractionalize, getFractionalTokenAddress} from '../../BlockchainServices/irecPlatformHooks';
 
 const IRECDashboard = () => {
   const [activeTab, setActiveTab] = useState('user');
   const [userSubTab, setUserSubTab] = useState('portfolio');
   const [sellerSubTab, setSellerSubTab] = useState('inventory');
   const [showFractionalizeModal, setShowFractionalizeModal] = useState(false);
+  const [showTokenAddressModal, setShowTokenAddressModal] = useState(false);
   const [fractionalizeForm, setFractionalizeForm] = useState({
     tokenId: '',
     totalEnergy: '',
@@ -14,6 +15,12 @@ const IRECDashboard = () => {
     tokenName: '',
     tokenSymbol: ''
   });
+  const [tokenAddressForm, setTokenAddressForm] = useState({ tokenId: '' });
+  const [tokenAddressResult, setTokenAddressResult] = useState<{
+    address?: string;
+    error?: string;
+    loading: boolean;
+  }>({ loading: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Handle form submission
@@ -25,79 +32,121 @@ const IRECDashboard = () => {
     tokenSymbol: string;
   }
 
- const handleFractionalizeSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-  e.preventDefault();
-  setIsSubmitting(true);
-  
-  try {
-    // Convert form values to appropriate types
-    const tokenId = BigInt(fractionalizeForm.tokenId);
+  const handleFractionalizeSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setIsSubmitting(true);
     
-    // Parse as regular numbers first, then convert to BigInt
-    const totalEnergyKW = parseFloat(fractionalizeForm.totalEnergy);
-    const energyPerTokenKW = parseFloat(fractionalizeForm.energyPerToken);
-    
-    // Validation checks
-    if (totalEnergyKW <= 0 || energyPerTokenKW <= 0) {
-      throw new Error('Energy values must be greater than zero');
-    }
-    
-    if (energyPerTokenKW < 50) {
-      throw new Error('Minimum energy per token is 50kW');
-    }
-    
-    if (totalEnergyKW % energyPerTokenKW !== 0) {
-      throw new Error('Total energy must be evenly divisible by energy per token');
-    }
-    
-    // Convert to BigInt (assuming the contract expects raw kW values)
-    // If your contract expects scaled values, multiply by appropriate factor
-    const totalEnergy = BigInt(Math.floor(totalEnergyKW));
-    const energyPerToken = BigInt(Math.floor(energyPerTokenKW));
-    
-    console.log('Fractionalization parameters:', {
-      tokenId: tokenId.toString(),
-      totalEnergy: totalEnergy.toString(),
-      energyPerToken: energyPerToken.toString(),
-      expectedTokens: (totalEnergyKW / energyPerTokenKW).toString()
-    });
+    try {
+      // Convert form values to appropriate types
+      const tokenId = BigInt(fractionalizeForm.tokenId);
+      
+      // Parse as regular numbers first, then convert to BigInt
+      const totalEnergyKW = parseFloat(fractionalizeForm.totalEnergy);
+      const energyPerTokenKW = parseFloat(fractionalizeForm.energyPerToken);
+      
+      // Validation checks
+      if (totalEnergyKW <= 0 || energyPerTokenKW <= 0) {
+        throw new Error('Energy values must be greater than zero');
+      }
+      
+      if (energyPerTokenKW < 50) {
+        throw new Error('Minimum energy per token is 50kW');
+      }
+      
+      if (totalEnergyKW % energyPerTokenKW !== 0) {
+        throw new Error('Total energy must be evenly divisible by energy per token');
+      }
+      const totalEnergy = BigInt(Math.floor(totalEnergyKW));
+      const energyPerToken = BigInt(Math.floor(energyPerTokenKW));
+      
+      console.log('Fractionalization parameters:', {
+        tokenId: tokenId.toString(),
+        totalEnergy: totalEnergy.toString(),
+        energyPerToken: energyPerToken.toString(),
+        expectedTokens: (totalEnergyKW / energyPerTokenKW).toString()
+      });
 
-    // Call the imported fractionalize function
-    const result = await fractionalize(
-      tokenId,
-      totalEnergy,
-      energyPerToken,
-      fractionalizeForm.tokenName,
-      fractionalizeForm.tokenSymbol
-    );
+      // Call the imported fractionalize function
+      const result = await fractionalize(
+        tokenId,
+        totalEnergy,
+        energyPerToken,
+        fractionalizeForm.tokenName,
+        fractionalizeForm.tokenSymbol
+      );
 
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to fractionalize NFT');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fractionalize NFT');
+      }
+
+      // Reset form and close modal
+      setFractionalizeForm({
+        tokenId: '',
+        totalEnergy: '',
+        energyPerToken: '',
+        tokenName: '',
+        tokenSymbol: ''
+      });
+      setShowFractionalizeModal(false);
+      
+      alert(`NFT fractionalized successfully! Expected ${Math.floor(totalEnergyKW / energyPerTokenKW)} tokens created.`);
+
+    } catch (error: unknown) {
+      console.error('Error fractionalizing NFT:', error);
+      if (error instanceof Error) {
+        alert('Error: ' + error.message);
+      } else {
+        alert('An unknown error occurred.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    // Reset form and close modal
-    setFractionalizeForm({
-      tokenId: '',
-      totalEnergy: '',
-      energyPerToken: '',
-      tokenName: '',
-      tokenSymbol: ''
-    });
-    setShowFractionalizeModal(false);
+  // Handle token address lookup
+  const handleTokenAddressLookup = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setTokenAddressResult({ loading: true });
     
-    alert(`NFT fractionalized successfully! Expected ${Math.floor(totalEnergyKW / energyPerTokenKW)} tokens created.`);
-
-  } catch (error: unknown) {
-    console.error('Error fractionalizing NFT:', error);
-    if (error instanceof Error) {
-      alert('Error: ' + error.message);
-    } else {
-      alert('An unknown error occurred.');
+    try {
+      const tokenId = tokenAddressForm.tokenId;
+      
+      if (!tokenId) {
+        throw new Error('Token ID is required');
+      }
+      
+      const result = await getFractionalTokenAddress(tokenId);
+      
+      if (result.success && result.tokenAddress) {
+        setTokenAddressResult({
+          address: result.tokenAddress,
+          loading: false
+        });
+      } else {
+        setTokenAddressResult({
+          error: result.error || 'Failed to fetch token address',
+          loading: false
+        });
+      }
+    } catch (error: unknown) {
+      console.error('Error fetching token address:', error);
+      setTokenAddressResult({
+        error: error instanceof Error ? error.message : 'An unknown error occurred',
+        loading: false
+      });
     }
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
+
+  const resetTokenAddressModal = () => {
+    setTokenAddressForm({ tokenId: '' });
+    setTokenAddressResult({ loading: false });
+    setShowTokenAddressModal(false);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert('Address copied to clipboard!');
+  };
 
   type FractionalizeFormField = keyof FractionalizeFormFields;
 
@@ -108,11 +157,6 @@ const IRECDashboard = () => {
     }));
   };
   
-console.log('Environment check:', {
-  rpcUrl: import.meta.env.VITE_SEPOLIA_RPC_URL,
-  allEnvs: import.meta.env,
-  mode: import.meta.env.MODE
-});
 
   // Mock data
   const mockUserData = {
@@ -303,6 +347,121 @@ console.log('Environment check:', {
       </div>
     </div>
   );
+
+   // Token Address Modal Component
+  const TokenAddressModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold">Get Token Address</h2>
+          <button
+            onClick={resetTokenAddressModal}
+            className="text-gray-400 hover:text-gray-600"
+            disabled={tokenAddressResult.loading}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        
+        {!tokenAddressResult.address && !tokenAddressResult.error && (
+          <form onSubmit={handleTokenAddressLookup} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Token ID
+              </label>
+              <input
+                type="text"
+                value={tokenAddressForm.tokenId}
+                onChange={(e) => setTokenAddressForm({ tokenId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Enter Token ID"
+                required
+                disabled={tokenAddressResult.loading}
+              />
+              <p className="text-xs text-gray-500 mt-1">Enter the ID of the fractionalized token</p>
+            </div>
+            <div className="flex space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={resetTokenAddressModal}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                disabled={tokenAddressResult.loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={tokenAddressResult.loading}
+              >
+                {tokenAddressResult.loading ? 'Loading...' : 'Get Address'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {tokenAddressResult.address && (
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-800">Token Address Found</span>
+              </div>
+              <div className="bg-white border border-green-200 rounded-md p-3 break-all text-sm font-mono">
+                {tokenAddressResult.address}
+              </div>
+              <div className="flex space-x-2 mt-3">
+                <button
+                  onClick={() => copyToClipboard(tokenAddressResult.address!)}
+                  className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded-md text-sm hover:bg-green-700"
+                >
+                  <Copy className="h-3 w-3" />
+                  <span>Copy</span>
+                </button>
+                <button className="flex items-center space-x-1 px-3 py-1 border border-green-600 text-green-600 rounded-md text-sm hover:bg-green-50">
+                  <ExternalLink className="h-3 w-3" />
+                  <span>View on Explorer</span>
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={resetTokenAddressModal}
+              className="w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+            >
+              Close
+            </button>
+          </div>
+        )}
+
+        {tokenAddressResult.error && (
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span className="text-sm font-medium text-red-800">Error</span>
+              </div>
+              <p className="text-sm text-red-700">{tokenAddressResult.error}</p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setTokenAddressResult({ loading: false })}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={resetTokenAddressModal}
+                className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
 
   const UserDashboard = () => (
     <div className="space-y-6">
@@ -543,14 +702,24 @@ console.log('Environment check:', {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold">IREC Inventory</h3>
-            <button 
-              onClick={() => setShowFractionalizeModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Fractionalize NFT</span>
-            </button>
+            <div className="flex space-x-2">
+              <button 
+                onClick={() => setShowFractionalizeModal(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Fractionalize NFT</span>
+              </button>
+              <button 
+                onClick={() => setShowTokenAddressModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <Search className="h-4 w-4" />
+                <span>Get Token Address</span>
+              </button>
+            </div>
           </div>
+
           <div className="grid gap-4">
             {mockSellerData.inventory.map((item) => (
               <div key={item.id} className="bg-white rounded-lg border border-gray-200 p-6">
@@ -714,6 +883,9 @@ console.log('Environment check:', {
       
       {/* Fractionalize Modal */}
       {showFractionalizeModal && <FractionalizeModal />}
+      
+      {/* Token Address Modal - Now properly used */}
+      {showTokenAddressModal && <TokenAddressModal />}
     </div>
   );
 };
