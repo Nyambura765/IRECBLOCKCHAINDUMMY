@@ -240,41 +240,41 @@ export const AdminManagement: React.FC = () => {
         )}
 
         {/* Current User Permissions Card */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-blue-900 mb-2">Your Current Permissions</h3>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-green-700 mb-2">Your Current Permissions</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
             <div className="flex items-center space-x-2">
-              <span className="text-blue-700">Address:</span>
-              <span className="font-mono text-blue-900">
+              <span className="text-green-600">Address:</span>
+              <span className="font-mono text-green-600">
                 {userPermissions.address ? formatAddress(userPermissions.address) : 'Not connected'}
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-blue-700">Admin:</span>
+              <span className="text-green-700">Admin:</span>
               <span className={`font-medium ${userPermissions.isAdmin ? 'text-green-600' : 'text-red-600'}`}>
                 {userPermissions.isAdmin ? 'Yes' : 'No'}
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-blue-700">Super Admin:</span>
+              <span className="text-green-700">Super Admin:</span>
               <span className={`font-medium ${userPermissions.isSuperAdmin ? 'text-green-600' : 'text-red-600'}`}>
                 {userPermissions.isSuperAdmin ? 'Yes' : 'No'}
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-blue-700">Initial Super Admin:</span>
+              <span className="text-green-700">Initial Super Admin:</span>
               <span className={`font-medium ${userPermissions.isInitialSuperAdmin ? 'text-green-600' : 'text-red-600'}`}>
                 {userPermissions.isInitialSuperAdmin ? 'Yes' : 'No'}
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-blue-700">Can Grant Admin:</span>
+              <span className="text-green-700">Can Grant Admin:</span>
               <span className={`font-medium ${userPermissions.canGrantAdmin ? 'text-green-600' : 'text-red-600'}`}>
                 {userPermissions.canGrantAdmin ? 'Yes' : 'No'}
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-blue-700">Can Grant Super Admin:</span>
+              <span className="text-green-700">Can Grant Super Admin:</span>
               <span className={`font-medium ${userPermissions.canGrantSuperAdmin ? 'text-green-600' : 'text-red-600'}`}>
                 {userPermissions.canGrantSuperAdmin ? 'Yes' : 'No'}
               </span>

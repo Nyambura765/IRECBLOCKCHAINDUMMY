@@ -261,7 +261,7 @@ const Marketplace: React.FC = () => {
     let result;
     
     if (newListing.isFractional) {
-      // ✅ No approval needed here - listFractionalTokens handles its own ERC20 approval
+      //  No approval needed here - listFractionalTokens handles its own ERC20 approval
       result = await listFractionalTokens(
         newListing.fractionalTokenAddress,
         parseEther(newListing.pricePerToken),
@@ -269,7 +269,7 @@ const Marketplace: React.FC = () => {
         BigInt(newListing.minimumPurchase)
       );
     } else {
-      // ✅ Only approve marketplace for whole NFT listings
+      //  Only approve marketplace for whole NFT listings
       const approvalResult = await setApprovalForAll(IrecNFTAddress, true);
       if (!approvalResult.success) {
         showStatus({
@@ -1069,9 +1069,9 @@ const Marketplace: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 -mt-8">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white shadow-sm pt-0">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-green-600" />

@@ -109,10 +109,10 @@ export const AddAdminForm: React.FC<AddAdminFormProps> = ({
     return (
       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
         isSuperAdmin
-          ? 'bg-orange-100 text-orange-800 border border-orange-200'
-          : 'bg-blue-100 text-blue-800 border border-blue-200'
+          ? 'bg-green-100 text-green-600 border border-green-200'
+          : 'bg-green-100 text-green-600 border border-green-200'
       }`}>
-        {isSuperAdmin ? '⚡ Super Admin' : '👤 Regular Admin'}
+        {isSuperAdmin ? ' Super Admin' : ' Regular Admin'}
       </span>
     );
   };
@@ -120,18 +120,6 @@ export const AddAdminForm: React.FC<AddAdminFormProps> = ({
   return (
     <div className={`bg-gray-50 p-4 rounded-lg border ${className}`}>
       <h4 className="text-sm font-medium text-gray-900 mb-3">Add New Admin</h4>
-      
-    
-      {/* Debug Info - Remove in production */}
-      {import.meta.env.MODE === 'development' && (
-        <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-          <p><strong>Debug Info:</strong></p>
-          <p>Can Grant Admin: {userPermissions.canGrantAdmin.toString()}</p>
-          <p>Can Grant Super Admin: {userPermissions.canGrantSuperAdmin.toString()}</p>
-          <p>Current Role: {formData.role}</p>
-          <p>Loading Keys: {Array.from(loading.grantingRole).join(', ')}</p>
-        </div>
-      )}
       <div className="space-y-3">
         {/* Address Input */}
         <div>
@@ -172,7 +160,7 @@ export const AddAdminForm: React.FC<AddAdminFormProps> = ({
             id="adminRole"
             value={formData.role}
             onChange={(e) => handleRoleChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-600 focus:border-green-500"
             disabled={isCurrentlyGranting}
           >
             {!userPermissions.canGrantAdmin && !userPermissions.canGrantSuperAdmin && (
@@ -230,8 +218,8 @@ export const AddAdminForm: React.FC<AddAdminFormProps> = ({
 
         {/* Permission Warning */}
         {!userPermissions.canGrantAdmin && !userPermissions.canGrantSuperAdmin && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-2">
-            <p className="text-yellow-700 text-xs">
+          <div className="bg-green-50 border border-green-200 rounded-md p-2">
+            <p className="text-orange-700 text-xs">
               You do not have permission to grant any admin roles
             </p>
           </div>
@@ -255,7 +243,7 @@ export const AddAdminForm: React.FC<AddAdminFormProps> = ({
         {/* Info Text */}
         <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
           <div className="flex items-start space-x-2">
-            <span className="text-blue-500 mt-0.5">ℹ️</span>
+            <span className="text-green-600 mt-0.5">ℹ️</span>
             <p>
               {(formData.role === 'SUPER_ADMIN_ROLE' || formData.role === 'DEFAULT_ADMIN_ROLE')
                 ? 'Super admins have full administrative privileges including the ability to grant and revoke admin roles from other users.'

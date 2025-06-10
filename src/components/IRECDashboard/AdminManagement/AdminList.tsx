@@ -101,7 +101,7 @@ export const AdminList: React.FC<AdminListProps> = ({
     } else if (admin.isSuperAdmin) {
       return <ShieldCheck className="h-4 w-4 text-red-600" />;
     } else {
-      return <Shield className="h-4 w-4 text-blue-600" />;
+      return <Shield className="h-4 w-4 text-green-600" />;
     }
   };
 

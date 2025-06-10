@@ -553,7 +553,7 @@ const IRECAdminDashboard: React.FC = () => {
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors"
+            className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors"
           >
             Retry Connection
           </button>
@@ -675,7 +675,7 @@ const IRECAdminDashboard: React.FC = () => {
               <button
                 onClick={handleManualRefresh}
                 disabled={loading.loadingAdmins}
-                className="mt-2 flex items-center text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                className="mt-2 flex items-center text-sm text-gray-600 hover:text-green-600 disabled:text-gray-400"
               >
                 <RefreshCw className={`w-4 h-4 mr-1 ${loading.loadingAdmins ? 'animate-spin' : ''}`} />
                 {loading.loadingAdmins ? 'Refreshing...' : 'Refresh List'}

@@ -1978,3 +1978,39 @@ export async function waitForTransaction({ hash }: { hash: `0x${string}`; }) {
   const publicClient = getPublicClient();
   return await publicClient.waitForTransactionReceipt({ hash });
 }
+//Redeem NFT
+export async function redeem(
+  tokenId: bigint
+): Promise<{ success: boolean; hash?: `0x${string}`; error?: string }> {
+  try {
+    const { walletClient, address } = await getWalletClient()
+    
+    if (!walletClient) {
+      throw new Error("Wallet not connected")
+    }
+
+    const hash = await walletClient.writeContract({
+      address:FractionalizationAddress as `0x${string}`,
+      abi: fractionalizationABI,
+      functionName: 'redeem',
+      args: [tokenId],
+      chain: sepolia,
+      account: address as `0x${string}`,
+    })
+
+    return { success: true, hash }
+  } catch (error) {
+    console.error("Error redeeming NFT:", error)
+    
+    let errorMessage = "Failed to redeem NFT"
+    if (error instanceof Error) {
+      if (error.message.includes("User rejected")) {
+        errorMessage = "Transaction was rejected by user"
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
+    return { success: false, error: errorMessage }
+  }
+}

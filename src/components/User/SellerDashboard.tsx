@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { User, ShoppingCart, Wallet, TrendingUp, Battery, Zap, DollarSign, Package, Eye, ShoppingBag, Plus, Edit3, Trash2, Search, Filter, Award, X, Copy, ExternalLink } from 'lucide-react';
-import { fractionalize, getFractionalTokenAddress} from '../../BlockchainServices/irecPlatformHooks';
+import { fractionalize, getFractionalTokenAddress, redeem} from '../../BlockchainServices/irecPlatformHooks';
 
 const IRECDashboard = () => {
   const [activeTab, setActiveTab] = useState('user');
@@ -8,6 +8,7 @@ const IRECDashboard = () => {
   const [sellerSubTab, setSellerSubTab] = useState('inventory');
   const [showFractionalizeModal, setShowFractionalizeModal] = useState(false);
   const [showTokenAddressModal, setShowTokenAddressModal] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [fractionalizeForm, setFractionalizeForm] = useState({
     tokenId: '',
     totalEnergy: '',
@@ -16,12 +17,14 @@ const IRECDashboard = () => {
     tokenSymbol: ''
   });
   const [tokenAddressForm, setTokenAddressForm] = useState({ tokenId: '' });
+  const [redeemForm, setRedeemForm] = useState({ tokenId: '' });
   const [tokenAddressResult, setTokenAddressResult] = useState<{
     address?: string;
     error?: string;
     loading: boolean;
   }>({ loading: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
 
   // Handle form submission
   interface FractionalizeFormFields {
@@ -103,6 +106,45 @@ const IRECDashboard = () => {
     }
   };
 
+  // Handle NFT redemption
+  const handleRedeemSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setIsRedeeming(true);
+    
+    try {
+      const tokenId = redeemForm.tokenId;
+      
+      if (!tokenId) {
+        throw new Error('Token ID is required');
+      }
+      
+      console.log('Redeeming NFT with Token ID:', tokenId);
+      
+      // Call the imported redeem function
+      const result = await redeem(BigInt(tokenId));
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to redeem NFT');
+      }
+      
+      // Reset form and close modal
+      setRedeemForm({ tokenId: '' });
+      setShowRedeemModal(false);
+      
+      alert(`NFT redeemed successfully! Transaction hash: ${result.hash}`);
+      
+    } catch (error: unknown) {
+      console.error('Error redeeming NFT:', error);
+      if (error instanceof Error) {
+        alert('Error: ' + error.message);
+      } else {
+        alert('An unknown error occurred.');
+      }
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
   // Handle token address lookup
   const handleTokenAddressLookup = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -143,6 +185,11 @@ const IRECDashboard = () => {
     setShowTokenAddressModal(false);
   };
 
+  const resetRedeemModal = () => {
+    setRedeemForm({ tokenId: '' });
+    setShowRedeemModal(false);
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert('Address copied to clipboard!');
@@ -172,7 +219,8 @@ const IRECDashboard = () => {
         energyValue: "1.5 MW",
         currentValue: "$4,200",
         change: "+12.5%",
-        type: "Solar"
+        type: "Solar",
+        tokenId: "123" // Added tokenId for redemption
       },
       {
         id: 2,
@@ -181,7 +229,8 @@ const IRECDashboard = () => {
         energyValue: "2.3 MW",
         currentValue: "$8,250",
         change: "-2.1%",
-        type: "Wind"
+        type: "Wind",
+        tokenId: "456" // Added tokenId for redemption
       }
     ],
     transactions: [
@@ -238,6 +287,69 @@ const IRECDashboard = () => {
       }
     ]
   };
+
+  // Redeem Modal Component
+  const RedeemModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold">Redeem NFT</h2>
+          <button
+            onClick={resetRedeemModal}
+            className="text-gray-400 hover:text-gray-600"
+            disabled={isRedeeming}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleRedeemSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Token ID
+            </label>
+            <input
+              type="number"
+              value={redeemForm.tokenId}
+              onChange={(e) => setRedeemForm({ tokenId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="Enter Token ID to redeem"
+              required
+              disabled={isRedeeming}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Enter the ID of the fractionalized token to redeem the original NFT
+            </p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-start space-x-2">
+              <div className="w-2 h-2 bg-amber-500 rounded-full mt-1.5"></div>
+              <div className="text-sm text-amber-800">
+                <p className="font-medium mb-1">Important Notice:</p>
+                <p>Redeeming will burn all fractional tokens and return the original NFT to your wallet. This action cannot be undone.</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={resetRedeemModal}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              disabled={isRedeeming}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isRedeeming}
+            >
+              {isRedeeming ? 'Redeeming...' : 'Redeem NFT'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 
   // Fractionalize Modal Component
   const FractionalizeModal = () => (
@@ -462,7 +574,6 @@ const IRECDashboard = () => {
     </div>
   );
 
-
   const UserDashboard = () => (
     <div className="space-y-6">
       {/* User Stats */}
@@ -525,7 +636,16 @@ const IRECDashboard = () => {
       {/* User Content */}
       {userSubTab === 'portfolio' && (
         <div className="space-y-6">
-          <h3 className="text-xl font-semibold">My Portfolio</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold">My Portfolio</h3>
+            <button 
+              onClick={() => setShowRedeemModal(true)}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 flex items-center space-x-2"
+            >
+              <Award className="h-4 w-4" />
+              <span>Redeem NFT</span>
+            </button>
+          </div>
           <div className="grid gap-4">
             {mockUserData.portfolio.map((item) => (
               <div key={item.id} className="bg-white rounded-lg border border-gray-200 p-6">
@@ -559,7 +679,13 @@ const IRECDashboard = () => {
                   <button className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
                     Sell Tokens
                   </button>
-                  <button className="px-4 py-2 bg-emerald-600 text-white rounded-md text-sm hover:bg-emerald-700 flex items-center space-x-1">
+                  <button 
+                    onClick={() => {
+                      setRedeemForm({ tokenId: item.tokenId });
+                      setShowRedeemModal(true);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-md text-sm hover:bg-emerald-700 flex items-center space-x-1"
+                  >
                     <Award className="h-4 w-4" />
                     <span>Redeem NFT</span>
                   </button>
@@ -712,7 +838,7 @@ const IRECDashboard = () => {
               </button>
               <button 
                 onClick={() => setShowTokenAddressModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2"
               >
                 <Search className="h-4 w-4" />
                 <span>Get Token Address</span>
@@ -814,7 +940,7 @@ const IRECDashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
-                          <button className="text-green-600 hover:text-green-900">
+                          <button className="text-green-600 hover:text-green-700">
                             <Edit3 className="h-4 w-4" />
                           </button>
                           <button className="text-gray-600 hover:text-gray-900">
@@ -848,11 +974,11 @@ const IRECDashboard = () => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
+    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen -mt-8">
       {/* Main Navigation */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">IREC Dashboard</h1>
-        <div className="flex space-x-1 bg-white rounded-lg p-1 border border-gray-200">
+        <div className="flex space-x-1 bg-white rounded-lg p-1 border border-gray-200 pt-0">
           <button
             onClick={() => setActiveTab('user')}
             className={`flex items-center space-x-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
@@ -881,11 +1007,10 @@ const IRECDashboard = () => {
       {/* Dashboard Content */}
       {activeTab === 'user' ? <UserDashboard /> : <SellerDashboard />}
       
-      {/* Fractionalize Modal */}
+      {/* Modals */}
       {showFractionalizeModal && <FractionalizeModal />}
-      
-      {/* Token Address Modal - Now properly used */}
       {showTokenAddressModal && <TokenAddressModal />}
+      {showRedeemModal && <RedeemModal />}
     </div>
   );
 };

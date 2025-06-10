@@ -32,21 +32,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }
 
   return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
+    <div className="space-y-6 p-6 bg-gray-50 min-h-screen -mt-8">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+          <h1 className="text-3xl font-bold text-gray-900 pt-0">{title}</h1>
           {userPermissions.address && (
             <p className="text-sm text-gray-600 mt-1">
               Connected: {formatAddress(userPermissions.address)}
               {userPermissions.isSuperAdmin && (
-                <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                <span className="ml-2 px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
                   Super Admin
                 </span>
               )}
               {userPermissions.isAdmin && !userPermissions.isSuperAdmin && (
-                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                <span className="ml-2 px-2 py-1 bg-blue-100 text-green-600 text-xs rounded-full">
                   Admin
                 </span>
               )}
